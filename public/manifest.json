@@ -1,0 +1,9 @@
+{
+  "name": "Kausar Group Excellence WebApp",
+  "short_name": "Kausar Excellence",
+  "description": "Internal daie network dashboard for Kausar Group.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0029fc"
+}

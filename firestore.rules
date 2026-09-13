@@ -1,0 +1,117 @@
+rules_version = '2';
+
+// Schema this matches (see src/lib/types.ts and the README-equivalent in the
+// build report):
+// - units/{unitId}        → { name }
+// - users/{uid}            → { daieId, name, email, rank, unitId, uplineId,
+//                              lineagePath, structureType, subscriptionStatus,
+//                              isGroupAdmin }
+// - sales/{id}             → { uid, category, subCategory, amount, count, date, createdAt }
+// - collections/{id}       → { uid, saleRef, amountCollected, date }
+// - bulletins/{id}         → { title, body, imageUrl, publishAt, createdBy }
+//
+// Hierarchy model: 5 independent unit pyramids, KDE > DPM > DM. A DPM/DM must
+// only ever see their own lineage (self + downline). lineagePath on a user
+// doc holds every upline uid from the unit's KDE down to (not including) that
+// user, so "am I in this person's upline chain" is a single array membership
+// check. isGroupAdmin is a custom claim (mirrored onto the user doc) for the
+// handful of Group-level admins who see across all 5 units.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isGroupAdmin() {
+      return signedIn() && request.auth.token.isGroupAdmin == true;
+    }
+
+    // True if the caller IS targetUid, or the caller's uid appears in
+    // targetUid's lineagePath (i.e. the caller is somewhere in targetUid's
+    // upline chain — a KDE or DPM looking at their own downline).
+    function isOwnLineage(targetUid) {
+      return signedIn() && (
+        targetUid == request.auth.uid ||
+        request.auth.uid in get(/databases/$(database)/documents/users/$(targetUid)).data.lineagePath
+      );
+    }
+
+    // units/{unitId} — read by any signed-in user (needed to label a daie's
+    // unit throughout the UI); writes only via emulator import / seed script,
+    // never from the client.
+    match /units/{unitId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // users/{uid} — read allowed for group admins, the user's own upline
+    // (own lineage), or the user themself. All writes go through Cloud
+    // Functions callables (createUser / updateUser / setUserClaims) using the
+    // Admin SDK, which bypasses these rules entirely — this keeps rank,
+    // lineagePath, and subscriptionStatus consistent instead of letting a
+    // client hand-edit its own hierarchy position.
+    match /users/{uid} {
+      allow read: if isGroupAdmin() || uid == request.auth.uid ||
+        (signedIn() && request.auth.uid in resource.data.lineagePath);
+      allow write: if false;
+    }
+
+    // sales/{id} — a daie can only ever create their OWN entries (self-entry
+    // only, uid must match the caller). Reading is scoped the same way as
+    // users: group admins see everything, everyone else sees their own
+    // lineage's entries. No client update/delete — entries are an append-only
+    // ledger for Phase 1.
+    match /sales/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
+      allow update, delete: if false;
+    }
+
+    // collections/{id} — same shape and rationale as sales/{id}.
+    match /collections/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
+      allow update, delete: if false;
+    }
+
+    // bulletins/{id} — any signed-in (active) daie can read the feed; only
+    // group admins can post/edit/delete.
+    match /bulletins/{id} {
+      allow read: if signedIn();
+      allow write: if isGroupAdmin();
+    }
+
+    // contests/{id} — Wasiyyah/Kausar contest posts (poster, requirements,
+    // dates, target table). Any signed-in daie reads; only group admins
+    // create/edit/delete.
+    match /contests/{id} {
+      allow read: if signedIn();
+      allow write: if isGroupAdmin();
+    }
+
+    // contestProgress/{id} — one doc per (contest, daie), self-reported
+    // (see ContestProgressDoc in lib/types.ts for why this isn't computed).
+    // A daie can only ever write their OWN progress; readable by group
+    // admins and the daie's own upline chain (so a DPM can see their
+    // downline's self-reported amounts to total up a "kumpulan" target).
+    match /contestProgress/{id} {
+      allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
+      allow create, update: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // goals/{uid} — a daie's own stated sales/income targets. Doc id IS the
+    // uid, so isOwnLineage(uid) works directly against it.
+    match /goals/{uid} {
+      allow read: if isGroupAdmin() || uid == request.auth.uid || isOwnLineage(uid);
+      allow write: if signedIn() && uid == request.auth.uid;
+    }
+
+    // achievements/{id} — badges manually awarded by a group admin, shown on
+    // the recipient's Wall of Fame. Same read scoping as contestProgress.
+    match /achievements/{id} {
+      allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
+      allow write: if isGroupAdmin();
+    }
+  }
+}

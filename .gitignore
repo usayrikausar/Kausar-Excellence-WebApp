@@ -1,0 +1,62 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Firebase Emulator Suite
+/emulator-data/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+functions/node_modules
+functions/lib
+
+# Service account keys (real credentials — never commit; keep these outside the repo)
+*firebase-adminsdk*.json
+service-account*.json
+
+# Real roster/sales data (names, emails, ranks, hierarchy, sales figures for
+# real daie) — regeneratable from the source Excel files via the parser
+# scripts, never checked in. See scripts/parse_perunding_whole.py and
+# scripts/reimport-roster.mjs.
+/scripts/roster_import.json
+/scripts/roster_import_v2.json
+/scripts/parsed_perancangan.json
+/scripts/matched_perancangan.json

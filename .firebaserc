@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "demo-kausar-group",
+    "production": "kausar-excellence-web-app"
+  }
+}
