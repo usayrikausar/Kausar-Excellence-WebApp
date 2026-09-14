@@ -102,7 +102,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/my-goal", label: "My Goal" },
   { href: "/team", label: "My Team" },
   { href: "/wall-of-fame", label: "My Wall of Fame" },
-  { href: "/my-onboarding", label: "My Onboarding", phase: 2 },
+  { href: "/my-onboarding", label: "My Onboarding" },
   { href: "/sales", label: "Sales & Collection" },
   { href: "/activities", label: "Activities" },
   { href: "/cpd", label: "CPD & Training" },

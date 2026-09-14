@@ -31,6 +31,7 @@ import type {
   TrainingAttendanceDoc,
   TrainingAttendanceEntry,
 } from "@/lib/types";
+import { computeOnboardingStatus, type OnboardingStatus } from "@/lib/onboarding";
 import { UNIT_LABELS } from "@/lib/constants";
 import { isActiveStatus } from "@/lib/utils";
 import { computeMonthlyScore, type MonthKey, type MonthlyScore } from "@/lib/scoring";
@@ -613,6 +614,7 @@ function toTrainingWithId(doc: QueryDocumentSnapshot<DocumentData>): TrainingWit
     date: data.date,
     location: data.location ?? null,
     qrToken: data.qrToken ?? null,
+    requiredForOnboarding: data.requiredForOnboarding === true,
     createdBy: data.createdBy,
   };
 }
@@ -696,6 +698,12 @@ export async function getCpdSummaryForUid(uid: string): Promise<CpdSummary> {
   const [attendance, trainings] = await Promise.all([getAttendanceForUid(uid), getTrainings()]);
   const trainingsById = new Map(trainings.map((t) => [t.id, t]));
   return computeCpdSummary(attendance, trainingsById);
+}
+
+/** My Onboarding status for one daie — see lib/onboarding.ts for the grouping/completion logic. */
+export async function getOnboardingStatusForUid(uid: string): Promise<OnboardingStatus> {
+  const [trainings, attendance] = await Promise.all([getTrainings(), getAttendanceForUid(uid)]);
+  return computeOnboardingStatus(trainings, attendance);
 }
 
 // Re-exported for existing server-side call sites — the real definition

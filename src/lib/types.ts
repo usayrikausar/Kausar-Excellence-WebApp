@@ -191,6 +191,15 @@ export interface TrainingDoc {
   location: string | null;
   /** Random unguessable token embedded in the check-in QR — only set for provider "kausar". Not a strong security boundary (anyone who sees the QR can check in as themselves), just enough to stop someone guessing a training id and self-checking-in without ever seeing the code. */
   qrToken: string | null;
+  /**
+   * A MUST-attend session for new daie (My Onboarding), not just optional
+   * CPD. Recurring monthly sessions (e.g. "Start Training") are separate
+   * docs with the same title — My Onboarding groups by title and treats
+   * attending ANY ONE instance as satisfying that requirement, so admin
+   * doesn't need any extra linking step beyond naming each month's session
+   * consistently. See lib/onboarding.ts.
+   */
+  requiredForOnboarding: boolean;
   createdBy: string;
   createdAt: unknown;
 }

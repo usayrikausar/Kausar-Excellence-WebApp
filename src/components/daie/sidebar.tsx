@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Star, TriangleAlert } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/constants";
 import type { CurrentUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function Sidebar({ user }: { user: CurrentUser }) {
+export function Sidebar({ user, onboardingComplete }: { user: CurrentUser; onboardingComplete: boolean | null }) {
   const pathname = usePathname();
 
   const items = NAV_ITEMS.filter((item) => {
@@ -37,7 +38,15 @@ export function Sidebar({ user }: { user: CurrentUser }) {
               )}
               style={!isActive ? { color: "var(--color-navy-100)" } : undefined}
             >
-              <span>{item.label}</span>
+              <span className="flex items-center gap-1.5">
+                {item.label}
+                {item.href === "/my-onboarding" && onboardingComplete === true && (
+                  <Star className="h-3.5 w-3.5 fill-accent text-accent" aria-label="Onboarding complete" />
+                )}
+                {item.href === "/my-onboarding" && onboardingComplete === false && (
+                  <TriangleAlert className="h-3.5 w-3.5 text-red-400" aria-label="Onboarding incomplete" />
+                )}
+              </span>
               {item.phase && (
                 <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/70">
                   P{item.phase}

@@ -24,6 +24,7 @@ export function CreateTrainingForm({ createdBy }: { createdBy: string }) {
   const [cpdHours, setCpdHours] = useState("");
   const [date, setDate] = useState("");
   const [location, setLocation] = useState("");
+  const [requiredForOnboarding, setRequiredForOnboarding] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
 
   async function handleSubmit(e: React.FormEvent) {
@@ -39,6 +40,7 @@ export function CreateTrainingForm({ createdBy }: { createdBy: string }) {
         date,
         location: location || null,
         qrToken: provider === "kausar" ? randomToken() : null,
+        requiredForOnboarding,
         createdBy,
         createdAt: serverTimestamp(),
       });
@@ -47,6 +49,7 @@ export function CreateTrainingForm({ createdBy }: { createdBy: string }) {
       setCpdHours("");
       setDate("");
       setLocation("");
+      setRequiredForOnboarding(false);
       router.refresh();
       setStatus("idle");
     } catch {
@@ -93,6 +96,10 @@ export function CreateTrainingForm({ createdBy }: { createdBy: string }) {
               <Input id="training-location" value={location} onChange={(e) => setLocation(e.target.value)} />
             </div>
           </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={requiredForOnboarding} onChange={(e) => setRequiredForOnboarding(e.target.checked)} className="h-4 w-4 rounded border-border" />
+            Required for onboarding — new daie must attend (appears on My Onboarding; name recurring sessions the same to have any one instance count)
+          </label>
           {status === "error" && <p className="text-sm font-medium text-red-600">Could not save. Try again.</p>}
           <Button type="submit" disabled={status === "saving"}>{status === "saving" ? "Creating…" : "Create training"}</Button>
         </form>

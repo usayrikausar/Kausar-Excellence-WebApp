@@ -87,6 +87,7 @@ export default async function CpdPage() {
                   <div>
                     <div className="flex items-center gap-1.5 font-semibold text-ink">
                       {t.title} <Badge variant={t.provider === "kausar" ? "default" : "accent"}>{t.provider === "kausar" ? "Kausar Group" : "Wasiyyah"}</Badge>
+                      {t.requiredForOnboarding && <Badge variant="success">Onboarding</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground">{formatDate(t.date)} &middot; {t.cpdHours} CPD hr{t.cpdHours === 1 ? "" : "s"}{t.location ? ` · ${t.location}` : ""}</p>
                   </div>
