@@ -81,17 +81,20 @@ function SectionTitle({ children, hint }: { children: React.ReactNode; hint?: st
   );
 }
 
-function CriterionRow({ label, value, target, met, formatValue }: { label: string; value: number; target: number; met: boolean; formatValue?: (n: number) => string }) {
+function CriterionRow({ label, value, target, met, formatValue, note }: { label: string; value: number; target: number; met: boolean; formatValue?: (n: number) => string; note?: string }) {
   const fmt = formatValue ?? ((n: number) => n.toLocaleString());
   const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
   return (
-    <div className="grid grid-cols-[110px_1fr_140px_26px] items-center gap-2.5">
-      <div className="text-[13px] font-semibold text-ink">{label}</div>
-      <div className="h-2 overflow-hidden rounded-full border border-border bg-muted">
-        <div className={cn("h-full rounded-full", met ? "bg-success" : "bg-red-600")} style={{ width: `${pct}%` }} />
+    <div>
+      <div className="grid grid-cols-[110px_1fr_140px_26px] items-center gap-2.5">
+        <div className="text-[13px] font-semibold text-ink">{label}</div>
+        <div className="h-2 overflow-hidden rounded-full border border-border bg-muted">
+          <div className={cn("h-full rounded-full", met ? "bg-success" : "bg-red-600")} style={{ width: `${pct}%` }} />
+        </div>
+        <div className="whitespace-nowrap text-right text-xs text-muted-foreground">{fmt(value)} / {fmt(target)}</div>
+        <div className={cn("text-center text-sm font-extrabold", met ? "text-success" : "text-red-600")}>{met ? "✓" : "✗"}</div>
       </div>
-      <div className="whitespace-nowrap text-right text-xs text-muted-foreground">{fmt(value)} / {fmt(target)}</div>
-      <div className={cn("text-center text-sm font-extrabold", met ? "text-success" : "text-red-600")}>{met ? "✓" : "✗"}</div>
+      {note && <div className="mt-0.5 pl-[122px] text-[11px] text-muted-foreground">{note}</div>}
     </div>
   );
 }
@@ -145,6 +148,8 @@ export default async function ReportCardPage({
 
   const monthSales = saleEntries.filter((e) => e.date.slice(0, 7) === monthKey);
   const perancangan = monthSales.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0);
+  const perancanganWasiat = monthSales.filter((e) => e.category === "perancangan" && e.subCategory !== "hibah").reduce((s, e) => s + (e.amount ?? 0), 0);
+  const perancanganHibah = monthSales.filter((e) => e.category === "perancangan" && e.subCategory === "hibah").reduce((s, e) => s + (e.amount ?? 0), 0);
   const berlianCount = monthSales.filter((e) => e.category === "pengurusan" && e.subCategory === "berlian").reduce((s, e) => s + (e.count ?? 0), 0);
   const mutiaraCount = monthSales.filter((e) => e.category === "pengurusan" && e.subCategory === "mutiara").reduce((s, e) => s + (e.count ?? 0), 0);
   const pusakaBesar = monthSales.filter((e) => e.category === "kesPusaka" && e.subCategory === "besar").reduce((s, e) => s + (e.amount ?? 0), 0);
@@ -166,6 +171,7 @@ export default async function ReportCardPage({
     alWasitahKesInPeriod: periodSales.filter((e) => e.category === "pengurusan").reduce((s, e) => s + (e.count ?? 0), 0),
     pusakaAmountInPeriod: periodSales.filter((e) => e.category === "kesPusaka").reduce((s, e) => s + (e.amount ?? 0), 0),
     perancanganInPeriod: periodSales.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0),
+    hibahInPeriod: periodSales.filter((e) => e.category === "perancangan" && e.subCategory === "hibah").reduce((s, e) => s + (e.amount ?? 0), 0),
     rookieEligible: isRookieEligible(target.dateLicensed),
   });
 
@@ -271,12 +277,13 @@ export default async function ReportCardPage({
               </tr>
             </thead>
             <tbody>
-              <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{perancangan.toLocaleString()}</td></tr>
+              <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan — Wasiat</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{perancanganWasiat.toLocaleString()}</td></tr>
+              <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan — Hibah</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{perancanganHibah.toLocaleString()}</td></tr>
               <tr><td className="border-b border-border px-2.5 py-2 text-ink">Pengurusan — Al Wasitah (Berlian)</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{berlianCount}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td></tr>
               <tr><td className="border-b border-border px-2.5 py-2 text-ink">Pengurusan — Al Wasitah (Mutiara)</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{mutiaraCount}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td></tr>
               <tr><td className="border-b border-border px-2.5 py-2 text-ink">Kes Pusaka — Besar</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{pusakaBesar.toLocaleString()}</td></tr>
               <tr><td className="border-b border-border px-2.5 py-2 text-ink">Kes Pusaka — Kecil</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{pusakaKecil.toLocaleString()}</td></tr>
-              <tr className="bg-muted font-bold"><td className="px-2.5 py-2 text-ink">Total (Perancangan + Kes Pusaka)</td><td className="px-2.5 py-2 text-right text-ink">—</td><td className="px-2.5 py-2 text-right text-ink">{periodTotal.toLocaleString()}</td></tr>
+              <tr className="bg-muted font-bold"><td className="px-2.5 py-2 text-ink">Total (Perancangan [Wasiat+Hibah] + Kes Pusaka)</td><td className="px-2.5 py-2 text-right text-ink">—</td><td className="px-2.5 py-2 text-right text-ink">{periodTotal.toLocaleString()}</td></tr>
             </tbody>
           </table>
 
@@ -305,7 +312,8 @@ export default async function ReportCardPage({
                 </tr>
               </thead>
               <tbody>
-                <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.perancangan)}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.perancangan)}</td></tr>
+                <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan — Wasiat</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.perancanganWasiat)}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.perancanganWasiat)}</td></tr>
+                <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan — Hibah</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.perancanganHibah)}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.perancanganHibah)}</td></tr>
                 <tr><td className="border-b border-border px-2.5 py-2 text-ink">Wasitah — Berlian</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.personalTotals.pengurusanBerlian}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.groupTotals.pengurusanBerlian}</td></tr>
                 <tr><td className="border-b border-border px-2.5 py-2 text-ink">Wasitah — Mutiara</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.personalTotals.pengurusanMutiara}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.groupTotals.pengurusanMutiara}</td></tr>
                 <tr><td className="border-b border-border px-2.5 py-2 text-ink">Pusaka — Besar</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.kesPusakaBesar)}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.kesPusakaBesar)}</td></tr>
@@ -345,14 +353,21 @@ export default async function ReportCardPage({
           <SectionTitle hint={`Wasiyyah FY ${formatDate(KONVENSYEN_PERIOD.start)}–${formatDate(KONVENSYEN_PERIOD.end)} · period count/amount`}>Konvensyen award progress</SectionTitle>
           <div className="flex flex-col gap-2.5">
             {konvensyen.map((c) => (
-              <CriterionRow key={c.label} label={c.label} value={c.value} target={c.target} met={c.met} formatValue={c.label.includes("Perancangan") || c.label === "Pusaka RT" ? formatRM : undefined} />
+              <CriterionRow
+                key={c.label}
+                label={c.label}
+                value={c.value}
+                target={c.target}
+                met={c.met}
+                formatValue={c.label.includes("Perancangan") || c.label === "Pusaka RT" || c.label === "Hibah RT" ? formatRM : undefined}
+                note={c.tierLabel}
+              />
             ))}
           </div>
           <p className="mt-3 text-[11px] text-muted-foreground">
-            {isRookieEligible(target.dateLicensed)
-              ? "Rookie categories shown because this daie registered within the Rookie Terbaik window (May 2025–Oct 2026). "
-              : ""}
-            Hibah Round Table and Perlantikan Round Table aren&rsquo;t shown — the app doesn&rsquo;t track a separate Hibah sales category or recruitment-appointment count yet.
+            Hibah RT is a single tiered award (RM100k/300k/500k/600k) — qualifying for a higher tier replaces the lower one, it doesn&rsquo;t stack.{" "}
+            {isRookieEligible(target.dateLicensed) && "Rookie categories shown because this daie registered within the Rookie Terbaik window (May 2025–Oct 2026). "}
+            Perlantikan Round Table isn&rsquo;t shown — the app doesn&rsquo;t track a recruitment-appointment count yet.
           </p>
         </div>
 

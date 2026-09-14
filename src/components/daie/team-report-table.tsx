@@ -33,8 +33,8 @@ function konv(row: TeamReportRow, label: string) {
 }
 
 type TrafficSortKey = "status" | "name" | "daieId" | "training" | "reach" | "presentations" | "sales" | "total";
-type SalesSortKey = "name" | "daieId" | "rank" | "perancangan" | "berlian" | "mutiara" | "besar" | "kecil" | "collection";
-type KonvensyenSortKey = "name" | "daieId" | "alWasitah" | "pusaka" | "rookieAlWasitah" | "rookiePerancangan" | "qualified";
+type SalesSortKey = "name" | "daieId" | "rank" | "perancangan" | "wasiat" | "hibah" | "berlian" | "mutiara" | "besar" | "kecil" | "collection";
+type KonvensyenSortKey = "name" | "daieId" | "alWasitah" | "hibah" | "pusaka" | "rookieAlWasitah" | "rookiePerancangan" | "qualified";
 
 export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow[]; units: Record<string, string>; showUnit: boolean }) {
   const [view, setView] = useState<View>("traffic");
@@ -75,6 +75,8 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
         case "daieId": return row.daieId;
         case "rank": return row.rank;
         case "perancangan": return row.sales.perancangan;
+        case "wasiat": return row.sales.perancanganWasiat;
+        case "hibah": return row.sales.perancanganHibah;
         case "berlian": return row.sales.pengurusanBerlian;
         case "mutiara": return row.sales.pengurusanMutiara;
         case "besar": return row.sales.kesPusakaBesar;
@@ -97,6 +99,7 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
         case "name": return row.name;
         case "daieId": return row.daieId;
         case "alWasitah": return konv(row, "Al-Wasitah RT")?.value ?? -1;
+        case "hibah": return konv(row, "Hibah RT")?.value ?? -1;
         case "pusaka": return konv(row, "Pusaka RT")?.value ?? -1;
         case "rookieAlWasitah": return konv(row, "Rookie Al-Wasitah")?.value ?? -1;
         case "rookiePerancangan": return konv(row, "Rookie Perancangan")?.value ?? -1;
@@ -174,7 +177,9 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
                   <th className="px-3 py-2.5"><SortHeaderButton label="Daie ID" sortKey="daieId" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   <th className="px-3 py-2.5"><SortHeaderButton label="Rank" sortKey="rank" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   {showUnit && <th className="px-3 py-2.5">Unit</th>}
-                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Perancangan" sortKey="perancangan" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Perancangan (Wasiat+Hibah)" sortKey="perancangan" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="— Wasiat" sortKey="wasiat" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="— Hibah" sortKey="hibah" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Wasitah Berlian" sortKey="berlian" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Wasitah Mutiara" sortKey="mutiara" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Pusaka Besar" sortKey="besar" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
@@ -190,6 +195,8 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
                     <td className="px-3 py-2"><Badge variant="outline">{row.rank}</Badge></td>
                     {showUnit && <td className="px-3 py-2 text-ink">{unitLabel(row.unitId, units)}</td>}
                     <td className="px-3 py-2 text-right text-ink">{formatRM(row.sales.perancangan)}</td>
+                    <td className="px-3 py-2 text-right text-muted-foreground">{formatRM(row.sales.perancanganWasiat)}</td>
+                    <td className="px-3 py-2 text-right text-muted-foreground">{formatRM(row.sales.perancanganHibah)}</td>
                     <td className="px-3 py-2 text-right text-ink">{row.sales.pengurusanBerlian}</td>
                     <td className="px-3 py-2 text-right text-ink">{row.sales.pengurusanMutiara}</td>
                     <td className="px-3 py-2 text-right text-ink">{formatRM(row.sales.kesPusakaBesar)}</td>
@@ -209,6 +216,7 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
                   <th className="px-3 py-2.5"><SortHeaderButton label="Daie ID" sortKey="daieId" activeSortKey={konvSort.key} direction={konvSort.dir} onSort={(k) => toggleSort(konvSort, k, setKonvSort)} /></th>
                   {showUnit && <th className="px-3 py-2.5">Unit</th>}
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Al-Wasitah RT" sortKey="alWasitah" activeSortKey={konvSort.key} direction={konvSort.dir} onSort={(k) => toggleSort(konvSort, k, setKonvSort)} /></th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Hibah RT (tier)" sortKey="hibah" activeSortKey={konvSort.key} direction={konvSort.dir} onSort={(k) => toggleSort(konvSort, k, setKonvSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Pusaka RT" sortKey="pusaka" activeSortKey={konvSort.key} direction={konvSort.dir} onSort={(k) => toggleSort(konvSort, k, setKonvSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Rookie Al-Wasitah" sortKey="rookieAlWasitah" activeSortKey={konvSort.key} direction={konvSort.dir} onSort={(k) => toggleSort(konvSort, k, setKonvSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Rookie Perancangan" sortKey="rookiePerancangan" activeSortKey={konvSort.key} direction={konvSort.dir} onSort={(k) => toggleSort(konvSort, k, setKonvSort)} /></th>
@@ -218,6 +226,7 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
               <tbody>
                 {konvRows.map((row) => {
                   const alWasitah = konv(row, "Al-Wasitah RT");
+                  const hibah = konv(row, "Hibah RT");
                   const pusaka = konv(row, "Pusaka RT");
                   const rookieAlWasitah = konv(row, "Rookie Al-Wasitah");
                   const rookiePerancangan = konv(row, "Rookie Perancangan");
@@ -227,6 +236,9 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
                       <td className="px-3 py-2 font-mono text-xs text-ink">{row.daieId}</td>
                       {showUnit && <td className="px-3 py-2 text-ink">{unitLabel(row.unitId, units)}</td>}
                       <td className={cn("px-3 py-2 text-right", alWasitah?.met ? "text-success" : "text-ink")}>{alWasitah ? `${alWasitah.value}/${alWasitah.target}` : "—"}</td>
+                      <td className={cn("px-3 py-2 text-right", hibah?.met ? "text-success" : "text-ink")}>
+                        {hibah?.met ? hibah.tierLabel?.replace("Qualifies for ", "").replace(" tier", "") ?? "—" : "Not yet"}
+                      </td>
                       <td className={cn("px-3 py-2 text-right", pusaka?.met ? "text-success" : "text-ink")}>{pusaka ? formatRM(pusaka.value) : "—"}</td>
                       <td className={cn("px-3 py-2 text-right", rookieAlWasitah?.met ? "text-success" : "text-ink")}>{rookieAlWasitah ? `${rookieAlWasitah.value}/${rookieAlWasitah.target}` : "—"}</td>
                       <td className={cn("px-3 py-2 text-right", rookiePerancangan?.met ? "text-success" : "text-ink")}>{rookiePerancangan ? formatRM(rookiePerancangan.value) : "—"}</td>

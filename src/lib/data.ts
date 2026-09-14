@@ -76,7 +76,10 @@ export interface TeamMember extends CurrentUser {
 }
 
 export interface SalesTotals {
+  /** Combined Wasiat + Hibah RM — this is THE figure used everywhere else in the app (sales totals, the DM->DPM promotion quota, Rookie Perancangan). Splitting into perancanganWasiat/perancanganHibah below never changes what this means. */
   perancangan: number; // RM
+  perancanganWasiat: number; // RM — subset of perancangan
+  perancanganHibah: number; // RM — subset of perancangan, for Konvensyen's Hibah Round Table
   pengurusanBerlian: number; // count
   pengurusanMutiara: number; // count
   kesPusakaBesar: number; // RM
@@ -127,6 +130,8 @@ export async function getDownline(user: CurrentUser): Promise<CurrentUser[]> {
 export async function getSalesTotalsForUid(uid: string): Promise<SalesTotals> {
   const totals: SalesTotals = {
     perancangan: 0,
+    perancanganWasiat: 0,
+    perancanganHibah: 0,
     pengurusanBerlian: 0,
     pengurusanMutiara: 0,
     kesPusakaBesar: 0,
@@ -143,6 +148,8 @@ export async function getSalesTotalsForUid(uid: string): Promise<SalesTotals> {
     const sale = doc.data() as SaleDoc;
     if (sale.category === "perancangan") {
       totals.perancangan += sale.amount ?? 0;
+      if (sale.subCategory === "hibah") totals.perancanganHibah += sale.amount ?? 0;
+      else totals.perancanganWasiat += sale.amount ?? 0; // "wasiat" and legacy/unspecified entries both count as wasiat by default
     } else if (sale.category === "pengurusan") {
       if (sale.subCategory === "berlian") totals.pengurusanBerlian += sale.count ?? 0;
       if (sale.subCategory === "mutiara") totals.pengurusanMutiara += sale.count ?? 0;
@@ -222,13 +229,15 @@ export function sumTotals(list: SalesTotals[]): SalesTotals {
   return list.reduce(
     (acc, t) => ({
       perancangan: acc.perancangan + t.perancangan,
+      perancanganWasiat: acc.perancanganWasiat + t.perancanganWasiat,
+      perancanganHibah: acc.perancanganHibah + t.perancanganHibah,
       pengurusanBerlian: acc.pengurusanBerlian + t.pengurusanBerlian,
       pengurusanMutiara: acc.pengurusanMutiara + t.pengurusanMutiara,
       kesPusakaBesar: acc.kesPusakaBesar + t.kesPusakaBesar,
       kesPusakaKecil: acc.kesPusakaKecil + t.kesPusakaKecil,
       collectionTotal: acc.collectionTotal + t.collectionTotal,
     }),
-    { perancangan: 0, pengurusanBerlian: 0, pengurusanMutiara: 0, kesPusakaBesar: 0, kesPusakaKecil: 0, collectionTotal: 0 },
+    { perancangan: 0, perancanganWasiat: 0, perancanganHibah: 0, pengurusanBerlian: 0, pengurusanMutiara: 0, kesPusakaBesar: 0, kesPusakaKecil: 0, collectionTotal: 0 },
   );
 }
 
@@ -572,6 +581,8 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
     const entries = salesByUid.get(member.uid) ?? [];
     const sales: SalesTotals = {
       perancangan: entries.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0),
+      perancanganWasiat: entries.filter((e) => e.category === "perancangan" && e.subCategory !== "hibah").reduce((s, e) => s + (e.amount ?? 0), 0),
+      perancanganHibah: entries.filter((e) => e.category === "perancangan" && e.subCategory === "hibah").reduce((s, e) => s + (e.amount ?? 0), 0),
       pengurusanBerlian: entries.filter((e) => e.category === "pengurusan" && e.subCategory === "berlian").reduce((s, e) => s + (e.count ?? 0), 0),
       pengurusanMutiara: entries.filter((e) => e.category === "pengurusan" && e.subCategory === "mutiara").reduce((s, e) => s + (e.count ?? 0), 0),
       kesPusakaBesar: entries.filter((e) => e.category === "kesPusaka" && e.subCategory === "besar").reduce((s, e) => s + (e.amount ?? 0), 0),
@@ -584,6 +595,7 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
       alWasitahKesInPeriod: periodEntries.filter((e) => e.category === "pengurusan").reduce((s, e) => s + (e.count ?? 0), 0),
       pusakaAmountInPeriod: periodEntries.filter((e) => e.category === "kesPusaka").reduce((s, e) => s + (e.amount ?? 0), 0),
       perancanganInPeriod: periodEntries.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0),
+      hibahInPeriod: periodEntries.filter((e) => e.category === "perancangan" && e.subCategory === "hibah").reduce((s, e) => s + (e.amount ?? 0), 0),
       rookieEligible: isRookieEligible(member.dateLicensed),
     });
 

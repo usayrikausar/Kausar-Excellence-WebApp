@@ -1,10 +1,10 @@
 // Wasiyyah Konvensyen award categories — pure functions, used by the
-// printable report card. Real thresholds from Wasiyyah's own category list
-// (financial year Jul 2025 – Dec 2026, an 18-month period due to a
-// financial-year readjustment). Hibah Round Table and Perlantikan Round
-// Table are deliberately NOT modeled here — the app has no Hibah sales
-// category and no recruitment-appointment count, so showing a number for
-// either would be a guess, not a fact.
+// printable report card and the Team Report. Real thresholds from
+// Wasiyyah's own category list (financial year Jul 2025 – Dec 2026, an
+// 18-month period due to a financial-year readjustment). Perlantikan Round
+// Table is deliberately NOT modeled here — the app has no
+// recruitment-appointment count, so showing a number would be a guess, not
+// a fact.
 
 export const KONVENSYEN_PERIOD = { start: "2025-07-01", end: "2026-12-31" } as const;
 export const ROOKIE_WINDOW = { start: "2025-05-01", end: "2026-10-31" } as const;
@@ -15,6 +15,9 @@ export const KONVENSYEN_TARGETS = {
   rookieAlWasitahKes: 25,
   rookiePerancangan: 60_000,
 } as const;
+
+/** Hibah Round Table is a SINGLE tiered award, not four stacking ones — a daie who clears RM500k qualifies for the HRT500k tier only, not HRT100k + HRT300k + HRT500k as well. */
+export const HIBAH_TIERS = [100_000, 300_000, 500_000, 600_000] as const;
 
 export function isWithinKonvensyenPeriod(dateIso: string): boolean {
   return dateIso >= KONVENSYEN_PERIOD.start && dateIso <= KONVENSYEN_PERIOD.end;
@@ -30,18 +33,36 @@ export interface KonvensyenCriterion {
   value: number;
   target: number;
   met: boolean;
+  /** Only set for tiered awards (Hibah RT) — e.g. "Qualifies for RM500k tier" or "No tier reached yet". */
+  tierLabel?: string;
+}
+
+function computeHibahCriterion(hibahAmountInPeriod: number): KonvensyenCriterion {
+  const achieved = [...HIBAH_TIERS].reverse().find((tier) => hibahAmountInPeriod >= tier) ?? null;
+  const maxTier = HIBAH_TIERS[HIBAH_TIERS.length - 1];
+  const nextTier = HIBAH_TIERS.find((tier) => hibahAmountInPeriod < tier) ?? maxTier;
+
+  return {
+    label: "Hibah RT",
+    value: hibahAmountInPeriod,
+    target: nextTier,
+    met: achieved !== null,
+    tierLabel: achieved !== null ? `Qualifies for RM${(achieved / 1000).toLocaleString()}k tier` : "No tier reached yet",
+  };
 }
 
 export function computeKonvensyenProgress(params: {
   alWasitahKesInPeriod: number;
   pusakaAmountInPeriod: number;
   perancanganInPeriod: number;
+  hibahInPeriod: number;
   rookieEligible: boolean;
 }): KonvensyenCriterion[] {
-  const { alWasitahKesInPeriod, pusakaAmountInPeriod, perancanganInPeriod, rookieEligible } = params;
+  const { alWasitahKesInPeriod, pusakaAmountInPeriod, perancanganInPeriod, hibahInPeriod, rookieEligible } = params;
 
   const criteria: KonvensyenCriterion[] = [
     { label: "Al-Wasitah RT", value: alWasitahKesInPeriod, target: KONVENSYEN_TARGETS.alWasitahKes, met: alWasitahKesInPeriod >= KONVENSYEN_TARGETS.alWasitahKes },
+    computeHibahCriterion(hibahInPeriod),
     { label: "Pusaka RT", value: pusakaAmountInPeriod, target: KONVENSYEN_TARGETS.pusakaAmount, met: pusakaAmountInPeriod >= KONVENSYEN_TARGETS.pusakaAmount },
   ];
 

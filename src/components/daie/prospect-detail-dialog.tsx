@@ -54,7 +54,7 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
 
   // Close & Record Sale form
   const [saleCategory, setSaleCategory] = useState<SalesCategory>("perancangan");
-  const [saleSubCategory, setSaleSubCategory] = useState<"berlian" | "mutiara" | "besar" | "kecil">("berlian");
+  const [saleSubCategory, setSaleSubCategory] = useState<"wasiat" | "hibah" | "berlian" | "mutiara" | "besar" | "kecil">("wasiat");
   const [saleAmount, setSaleAmount] = useState("");
   const [saleDate, setSaleDate] = useState(todayISO());
   const [recordCollection, setRecordCollection] = useState(true);
@@ -128,7 +128,7 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
       batch.set(saleRef, {
         uid: prospect.uid,
         category: saleCategory,
-        subCategory: saleCategory === "pengurusan" || saleCategory === "kesPusaka" ? saleSubCategory : null,
+        subCategory: saleSubCategory,
         amount: isRm ? Number(saleAmount) : null,
         count: saleCategory === "pengurusan" ? Number(saleAmount) : null,
         date: Timestamp.fromDate(new Date(saleDate)),
@@ -273,7 +273,14 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
               <p className="text-sm font-semibold text-ink">Record the sale that closed this prospect</p>
               <div className="space-y-2">
                 <Label>Category</Label>
-                <RadioGroup value={saleCategory} onValueChange={(v) => setSaleCategory(v as SalesCategory)} className="flex flex-wrap gap-4">
+                <RadioGroup
+                  value={saleCategory}
+                  onValueChange={(v) => {
+                    setSaleCategory(v as SalesCategory);
+                    setSaleSubCategory(v === "perancangan" ? "wasiat" : v === "kesPusaka" ? "besar" : "berlian");
+                  }}
+                  className="flex flex-wrap gap-4"
+                >
                   <label className="flex items-center gap-1.5 text-sm">
                     <RadioGroupItem value="perancangan" id="close-perancangan" /> Perancangan
                   </label>
@@ -286,6 +293,15 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
                 </RadioGroup>
               </div>
 
+              {saleCategory === "perancangan" && (
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <RadioGroup value={saleSubCategory} onValueChange={(v) => setSaleSubCategory(v as "wasiat" | "hibah")} className="flex gap-6">
+                    <label className="flex items-center gap-1.5 text-sm"><RadioGroupItem value="wasiat" id="close-wasiat" /> Wasiat</label>
+                    <label className="flex items-center gap-1.5 text-sm"><RadioGroupItem value="hibah" id="close-hibah" /> Hibah</label>
+                  </RadioGroup>
+                </div>
+              )}
               {saleCategory === "pengurusan" && (
                 <div className="space-y-2">
                   <Label>Package</Label>

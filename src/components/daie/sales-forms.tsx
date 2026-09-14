@@ -48,6 +48,7 @@ function StatusMessage({ status }: { status: "idle" | "saving" | "saved" | "erro
 
 export function PerancanganForm({ uid, prospects = [] }: { uid: string; prospects?: ProspectOption[] }) {
   const router = useRouter();
+  const [subCategory, setSubCategory] = useState<"wasiat" | "hibah">("wasiat");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(todayISO());
   const [prospectId, setProspectId] = useState("none");
@@ -60,7 +61,7 @@ export function PerancanganForm({ uid, prospects = [] }: { uid: string; prospect
       await addDoc(collection(db, "sales"), {
         uid,
         category: "perancangan",
-        subCategory: null,
+        subCategory,
         amount: Number(amount),
         count: null,
         date: Timestamp.fromDate(new Date(date)),
@@ -80,10 +81,17 @@ export function PerancanganForm({ uid, prospects = [] }: { uid: string; prospect
     <Card>
       <CardHeader>
         <CardTitle>Perancangan</CardTitle>
-        <CardDescription>Wasiat/hibah planning case — enter the RM amount.</CardDescription>
+        <CardDescription>Wasiat or hibah planning case — Perancangan totals combine both; picking one here only powers the separate Hibah Round Table tracking.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Type</Label>
+            <RadioGroup value={subCategory} onValueChange={(v) => setSubCategory(v as "wasiat" | "hibah")} className="flex gap-6">
+              <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="wasiat" id="perancangan-wasiat" /> Wasiat</label>
+              <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="hibah" id="perancangan-hibah" /> Hibah</label>
+            </RadioGroup>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="perancangan-amount">Amount (RM)</Label>
             <Input

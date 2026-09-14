@@ -25,9 +25,11 @@ export function SalesComparison({
 
   const rows = [
     {
-      label: "Perancangan",
+      label: "Perancangan (Wasiat + Hibah)",
       personal: formatRM(personalTotals.perancangan),
+      personalBreakdown: `Wasiat: ${formatRM(personalTotals.perancanganWasiat)} · Hibah: ${formatRM(personalTotals.perancanganHibah)}`,
       group: groupTotals ? formatRM(groupTotals.perancangan) : "—",
+      groupBreakdown: groupTotals ? `Wasiat: ${formatRM(groupTotals.perancanganWasiat)} · Hibah: ${formatRM(groupTotals.perancanganHibah)}` : undefined,
     },
     {
       label: "Pengurusan (Al Wasitah)",

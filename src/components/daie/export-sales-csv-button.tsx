@@ -16,7 +16,9 @@ export function ExportSalesCsvButton({
   function exportCsv() {
     const headers = [
       "Scope",
-      "Perancangan",
+      "Perancangan (Wasiat + Hibah)",
+      "Perancangan - Wasiat",
+      "Perancangan - Hibah",
       "Pengurusan - Berlian",
       "Pengurusan - Mutiara",
       "Kes Pusaka - Besar",
@@ -27,6 +29,8 @@ export function ExportSalesCsvButton({
       return [
         scope,
         formatRM(t.perancangan),
+        formatRM(t.perancanganWasiat),
+        formatRM(t.perancanganHibah),
         String(t.pengurusanBerlian),
         String(t.pengurusanMutiara),
         formatRM(t.kesPusakaBesar),

@@ -46,13 +46,15 @@ export interface CurrentUser extends UserDoc {
 }
 
 export type SalesCategory = "perancangan" | "pengurusan" | "kesPusaka";
+/** Wasiat (will) vs Hibah (gift) — both are Perancangan cases; "Perancangan" everywhere in the app (sales totals, the DM->DPM promotion quota, Rookie Perancangan) is the COMBINED wasiat+hibah RM figure, unchanged by this split. This only exists so Hibah can ALSO be tracked on its own for Wasiyyah's Hibah Round Table Konvensyen award, which needs a Hibah-only number. */
+export type PerancanganSubCategory = "wasiat" | "hibah";
 export type PengurusanSubCategory = "berlian" | "mutiara";
 export type KesPusakaSubCategory = "besar" | "kecil";
 
 export interface SaleDoc {
   uid: string;
   category: SalesCategory;
-  subCategory: PengurusanSubCategory | KesPusakaSubCategory | null;
+  subCategory: PerancanganSubCategory | PengurusanSubCategory | KesPusakaSubCategory | null;
   amount: number | null;
   count: number | null;
   date: unknown;
@@ -73,7 +75,7 @@ export interface SaleEntry {
   id: string;
   uid: string;
   category: SalesCategory;
-  subCategory: PengurusanSubCategory | KesPusakaSubCategory | null;
+  subCategory: PerancanganSubCategory | PengurusanSubCategory | KesPusakaSubCategory | null;
   amount: number | null;
   count: number | null;
   /** ISO date string — Firestore Timestamps can't cross into Client Components. */
