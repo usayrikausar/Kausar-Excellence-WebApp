@@ -91,6 +91,15 @@ export interface CollectionDoc {
   prospectId?: string | null;
 }
 
+/** Plain, client-safe shape of one collection (payment) entry — same rationale as SaleEntry. */
+export interface CollectionEntry {
+  id: string;
+  uid: string;
+  amountCollected: number;
+  date: string; // ISO
+  prospectId: string | null;
+}
+
 export interface BulletinDoc {
   title: string;
   body: string;

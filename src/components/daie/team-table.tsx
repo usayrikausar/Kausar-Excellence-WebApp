@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { ChevronUp, ChevronDown, FileText } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -143,6 +144,7 @@ export function TeamTable({
               <TableHead className="text-right"><SortHeaderButton label="Total Pusaka" sortKey="pusakaTotal" activeSortKey={sortKey} direction={direction} onSort={handleSort} /></TableHead>
               <TableHead><SortHeaderButton label="Date licensed" sortKey="dateLicensed" activeSortKey={sortKey} direction={direction} onSort={handleSort} /></TableHead>
               <TableHead><SortHeaderButton label="Date expiry" sortKey="expiry" activeSortKey={sortKey} direction={direction} onSort={handleSort} /></TableHead>
+              <TableHead>Report card</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -166,6 +168,11 @@ export function TeamTable({
                   <TableCell className="text-right">{formatRM(member.pusakaTotal)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{member.dateLicensed ? formatDate(member.dateLicensed) : "—"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{expiry ? formatDate(expiry) : "—"}</TableCell>
+                  <TableCell>
+                    <Link href={`/report-card/${member.uid}`} target="_blank" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                      <FileText className="h-3.5 w-3.5" /> Print
+                    </Link>
+                  </TableCell>
                 </TableRow>
               );
             })}

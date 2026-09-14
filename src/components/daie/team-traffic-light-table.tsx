@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrafficLightDot } from "@/components/daie/traffic-light-dot";
@@ -48,6 +50,7 @@ export function TeamTrafficLightTable({ rows }: { rows: TeamScoreRow[] }) {
                   <TableHead className="text-right">Presentations</TableHead>
                   <TableHead className="text-right">Sales</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Report card</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -61,6 +64,11 @@ export function TeamTrafficLightTable({ rows }: { rows: TeamScoreRow[] }) {
                     <TableCell className="text-right">{row.score.presentations.points}</TableCell>
                     <TableCell className="text-right">{row.score.sales.points}</TableCell>
                     <TableCell className="text-right font-semibold">{row.score.total}</TableCell>
+                    <TableCell>
+                      <Link href={`/report-card/${row.uid}?month=${row.score.monthKey}`} target="_blank" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                        <FileText className="h-3.5 w-3.5" /> Print
+                      </Link>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

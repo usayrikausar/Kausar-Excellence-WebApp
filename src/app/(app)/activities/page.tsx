@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { FileText } from "lucide-react";
 import { requireDaie } from "@/lib/auth/session";
 import { getProspectsForUid, getMonthlyScoreForUid } from "@/lib/data";
 import { currentMonthKey } from "@/lib/scoring";
@@ -29,6 +31,10 @@ export default async function ActivitiesPage() {
       </div>
 
       <TrafficLightSummary score={score} />
+
+      <Link href={`/report-card/${user.uid}?month=${monthKey}`} target="_blank" className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+        <FileText className="h-4 w-4" /> Print my report card
+      </Link>
 
       <LogActivityForm uid={user.uid} />
 

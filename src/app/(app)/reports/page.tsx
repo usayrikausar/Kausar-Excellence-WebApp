@@ -1,4 +1,5 @@
-import { Users } from "lucide-react";
+import Link from "next/link";
+import { Users, FileText } from "lucide-react";
 import { requireDaie } from "@/lib/auth/session";
 import { getSalesSummary, getSaleEntriesForUids, getTeamWithTotals, getMonthlyScoreForUid } from "@/lib/data";
 import { currentMonthKey } from "@/lib/scoring";
@@ -61,7 +62,16 @@ export default async function ReportsPage() {
         />
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {team.length > 0 && (
+          <Link
+            href="/team-report"
+            target="_blank"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-muted"
+          >
+            <FileText className="h-4 w-4" /> Print team report
+          </Link>
+        )}
         <ExportSalesCsvButton personalTotals={personalTotals} groupTotals={groupTotals} />
       </div>
       <SalesComparison personalTotals={personalTotals} groupTotals={groupTotals} groupStatusCounts={groupStatusCounts} />

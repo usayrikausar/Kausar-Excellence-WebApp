@@ -87,3 +87,13 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
+
+/* Printable report card (src/app/report-card/[uid]/page.tsx) — everything
+   else on the page uses Tailwind's `print:` variant, but @page itself has no
+   utility-class equivalent. */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+}

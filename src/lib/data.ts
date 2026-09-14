@@ -25,11 +25,13 @@ import type {
   ActivityDoc,
   ActivityEntry,
   WasitahSubscriptionDoc,
+  CollectionEntry,
 } from "@/lib/types";
 import { UNIT_LABELS } from "@/lib/constants";
 import { isActiveStatus } from "@/lib/utils";
 import { computeMonthlyScore, type MonthKey, type MonthlyScore } from "@/lib/scoring";
 import { computeDpmPromotionStatus, type DpmPromotionStatus, type RecruitInput } from "@/lib/promotion";
+import { computeKonvensyenProgress, isRookieEligible, isWithinKonvensyenPeriod, type KonvensyenCriterion } from "@/lib/konvensyen";
 import type { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
 
 /**
@@ -85,6 +87,13 @@ export async function getUnits(): Promise<Record<string, string>> {
     out[doc.id] = (doc.data().name as string) ?? doc.id;
   });
   return out;
+}
+
+/** Single user by uid, or null if they don't exist — for detail pages (e.g. the printable report card) keyed by uid rather than the viewer's own session. */
+export async function getUserByUid(uid: string): Promise<CurrentUser | null> {
+  const doc = await adminDb.collection("users").doc(uid).get();
+  if (!doc.exists) return null;
+  return toCurrentUser(doc as QueryDocumentSnapshot<DocumentData>);
 }
 
 /** Everyone in `user`'s downline (does NOT include `user` themself). Group admins get everyone. */
@@ -159,6 +168,36 @@ export async function getSaleEntriesForUids(uids: string[]): Promise<SaleEntry[]
     chunks.map((chunk) => adminDb.collection("sales").where("uid", "in", chunk).get()),
   );
   return results.flatMap((snap) => snap.docs.map(toSaleEntry));
+}
+
+function toCollectionEntry(doc: QueryDocumentSnapshot<DocumentData>): CollectionEntry {
+  const data = doc.data() as CollectionDoc;
+  const date = data.date as unknown as { toDate: () => Date };
+  return {
+    id: doc.id,
+    uid: data.uid,
+    amountCollected: data.amountCollected ?? 0,
+    date: date.toDate().toISOString(),
+    prospectId: data.prospectId ?? null,
+  };
+}
+
+/** Every individual collection (payment) entry for one daie — for month-scoped totals (e.g. the printable report card), which the aggregated getSalesTotalsForUid can't answer. */
+export async function getCollectionEntriesForUid(uid: string): Promise<CollectionEntry[]> {
+  const snap = await adminDb.collection("collections").where("uid", "==", uid).get();
+  return snap.docs.map(toCollectionEntry);
+}
+
+/** Same as getCollectionEntriesForUid but batched across many daie in one shot (see getSaleEntriesForUids) — for team-wide reports. */
+export async function getCollectionEntriesForUids(uids: string[]): Promise<CollectionEntry[]> {
+  if (uids.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < uids.length; i += 30) chunks.push(uids.slice(i, i + 30));
+
+  const results = await Promise.all(
+    chunks.map((chunk) => adminDb.collection("collections").where("uid", "in", chunk).get()),
+  );
+  return results.flatMap((snap) => snap.docs.map(toCollectionEntry));
 }
 
 export function sumTotals(list: SalesTotals[]): SalesTotals {
@@ -459,6 +498,88 @@ export async function getDpmPromotionStatusForUid(user: CurrentUser): Promise<Dp
     dateLicensed: user.dateLicensed,
     selfWasitahActive: selfWasitah.active,
     recruits: recruitInputs,
+  });
+}
+
+// --- Printable Team Report (traffic light / sales by category / convention qualifiers) ------
+
+export interface TeamReportRow {
+  uid: string;
+  name: string;
+  daieId: string;
+  rank: CurrentUser["rank"];
+  unitId: string;
+  score: MonthlyScore;
+  sales: SalesTotals;
+  konvensyen: KonvensyenCriterion[];
+  konvensyenQualified: boolean;
+}
+
+/**
+ * One row per downline member, with everything the printable Team Report
+ * needs across all three of its views. Group admins' `getDownline` already
+ * returns everyone across all 5 units; anyone else (a KDE, a DPM) gets just
+ * their own lineage — so this one function naturally serves both "super
+ * admin prints the whole company" and "each group's own leader prints their
+ * own group" without any special-casing.
+ *
+ * Sales/collection entries are fetched once in two BATCHED queries for the
+ * whole team (bounded by getSaleEntriesForUids' chunking, not one query per
+ * member) since a group admin's downline can run into the hundreds. Monthly
+ * scores still cost one getMonthlyScoreForUid per member — same as the
+ * existing Reports page already pays — since that itself composes 3
+ * different per-uid queries and isn't easily batched further.
+ */
+export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): Promise<TeamReportRow[]> {
+  const downline = await getDownline(user);
+  if (downline.length === 0) return [];
+
+  const uids = downline.map((m) => m.uid);
+  const [saleEntries, collectionEntries, scores] = await Promise.all([
+    getSaleEntriesForUids(uids),
+    getCollectionEntriesForUids(uids),
+    Promise.all(downline.map((m) => getMonthlyScoreForUid(m.uid, monthKey))),
+  ]);
+
+  const salesByUid = new Map<string, SaleEntry[]>();
+  for (const e of saleEntries) {
+    const list = salesByUid.get(e.uid) ?? [];
+    list.push(e);
+    salesByUid.set(e.uid, list);
+  }
+  const collectedByUid = new Map<string, number>();
+  for (const c of collectionEntries) collectedByUid.set(c.uid, (collectedByUid.get(c.uid) ?? 0) + c.amountCollected);
+
+  return downline.map((member, i) => {
+    const entries = salesByUid.get(member.uid) ?? [];
+    const sales: SalesTotals = {
+      perancangan: entries.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0),
+      pengurusanBerlian: entries.filter((e) => e.category === "pengurusan" && e.subCategory === "berlian").reduce((s, e) => s + (e.count ?? 0), 0),
+      pengurusanMutiara: entries.filter((e) => e.category === "pengurusan" && e.subCategory === "mutiara").reduce((s, e) => s + (e.count ?? 0), 0),
+      kesPusakaBesar: entries.filter((e) => e.category === "kesPusaka" && e.subCategory === "besar").reduce((s, e) => s + (e.amount ?? 0), 0),
+      kesPusakaKecil: entries.filter((e) => e.category === "kesPusaka" && e.subCategory === "kecil").reduce((s, e) => s + (e.amount ?? 0), 0),
+      collectionTotal: collectedByUid.get(member.uid) ?? 0,
+    };
+
+    const periodEntries = entries.filter((e) => isWithinKonvensyenPeriod(e.date));
+    const konvensyen = computeKonvensyenProgress({
+      alWasitahKesInPeriod: periodEntries.filter((e) => e.category === "pengurusan").reduce((s, e) => s + (e.count ?? 0), 0),
+      pusakaAmountInPeriod: periodEntries.filter((e) => e.category === "kesPusaka").reduce((s, e) => s + (e.amount ?? 0), 0),
+      perancanganInPeriod: periodEntries.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0),
+      rookieEligible: isRookieEligible(member.dateLicensed),
+    });
+
+    return {
+      uid: member.uid,
+      name: member.name,
+      daieId: member.daieId,
+      rank: member.rank,
+      unitId: member.unitId,
+      score: scores[i],
+      sales,
+      konvensyen,
+      konvensyenQualified: konvensyen.every((c) => c.met),
+    };
   });
 }
 
