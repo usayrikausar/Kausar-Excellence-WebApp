@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Star, TriangleAlert } from "lucide-react";
@@ -19,9 +20,14 @@ export function Sidebar({ user, onboardingComplete }: { user: CurrentUser; onboa
   return (
     <aside className="flex w-64 shrink-0 flex-col bg-sidebar-background text-sidebar-foreground">
       <div className="flex h-16 items-center gap-2 border-b border-white/10 px-6">
-        <span className="font-[family-name:var(--font-display)] text-lg font-extrabold tracking-tight">
-          Kausar<span className="text-accent">.</span>
-        </span>
+        <Image
+          src="/kausar-logo.png"
+          alt="Kausar Group"
+          width={1600}
+          height={837}
+          priority
+          className="h-10 w-auto object-contain"
+        />
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {items.map((item) => {
