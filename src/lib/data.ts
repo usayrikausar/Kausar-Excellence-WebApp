@@ -19,9 +19,17 @@ import type {
   ContestProgressDoc,
   GoalDoc,
   AchievementDoc,
+  ProspectDoc,
+  ProspectUpdateDoc,
+  ProspectUpdateEntry,
+  ActivityDoc,
+  ActivityEntry,
+  WasitahSubscriptionDoc,
 } from "@/lib/types";
 import { UNIT_LABELS } from "@/lib/constants";
 import { isActiveStatus } from "@/lib/utils";
+import { computeMonthlyScore, type MonthKey, type MonthlyScore } from "@/lib/scoring";
+import { computeDpmPromotionStatus, type DpmPromotionStatus, type RecruitInput } from "@/lib/promotion";
 import type { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
 
 /**
@@ -278,6 +286,180 @@ export async function getGoal(uid: string): Promise<GoalDoc | null> {
 export async function getAchievementsForUid(uid: string): Promise<Array<AchievementDoc & { id: string }>> {
   const snap = await adminDb.collection("achievements").where("uid", "==", uid).orderBy("dateAwarded", "desc").get();
   return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as AchievementDoc) }));
+}
+
+// --- PIPPPAS pipeline (Activities) ------------------------------------------
+
+export interface ProspectWithId extends Omit<ProspectDoc, "createdAt" | "updatedAt"> {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function toProspect(doc: QueryDocumentSnapshot<DocumentData>): ProspectWithId {
+  const data = doc.data();
+  return {
+    id: doc.id,
+    uid: data.uid,
+    name: data.name,
+    phone: data.phone ?? null,
+    details: data.details ?? null,
+    source: data.source,
+    stage: data.stage,
+    status: data.status,
+    nextFollowUpDate: data.nextFollowUpDate ?? null,
+    linkedSaleId: data.linkedSaleId ?? null,
+    createdAt: data.createdAt?.toDate?.().toISOString() ?? null,
+    updatedAt: data.updatedAt?.toDate?.().toISOString() ?? null,
+    age: data.age ?? null,
+    birthdate: data.birthdate ?? null,
+    email: data.email ?? null,
+    profession: data.profession ?? null,
+    professionOther: data.professionOther ?? null,
+    governmentTahap: data.governmentTahap ?? null,
+    organizationName: data.organizationName ?? null,
+    incomeBracket: data.incomeBracket ?? null,
+    importantDate: data.importantDate ?? null,
+    importantDateLabel: data.importantDateLabel ?? null,
+    faraidNotes: data.faraidNotes ?? null,
+  };
+}
+
+export async function getProspectsForUid(uid: string): Promise<ProspectWithId[]> {
+  const snap = await adminDb.collection("prospects").where("uid", "==", uid).get();
+  return snap.docs.map(toProspect);
+}
+
+function toProspectUpdateEntry(prospectId: string, doc: QueryDocumentSnapshot<DocumentData>): ProspectUpdateEntry {
+  const data = doc.data() as ProspectUpdateDoc;
+  const createdAt = data.createdAt as unknown as { toDate: () => Date };
+  return {
+    id: doc.id,
+    prospectId,
+    uid: data.uid,
+    stage: data.stage,
+    note: data.note,
+    nextFollowUpDate: data.nextFollowUpDate ?? null,
+    createdAt: createdAt.toDate().toISOString(),
+  };
+}
+
+/** Full stage-by-stage history for one prospect, oldest first. */
+export async function getUpdatesForProspect(prospectId: string): Promise<ProspectUpdateEntry[]> {
+  const snap = await adminDb
+    .collection("prospects")
+    .doc(prospectId)
+    .collection("updates")
+    .orderBy("createdAt", "asc")
+    .get();
+  return snap.docs.map((doc) => toProspectUpdateEntry(prospectId, doc));
+}
+
+/**
+ * The earliest "reached Present stage" date for each of this daie's
+ * prospects (one ISO date per distinct prospect) — used to score the
+ * traffic-light presentation count ("first time a prospect reached
+ * Present"). A collectionGroup query across every prospect's `updates`
+ * subcollection, filtered by the denormalized `uid` field rather than a
+ * per-prospect get() — see ProspectUpdateDoc in lib/types.ts.
+ */
+export async function getPresentStageFirstDatesForUid(uid: string): Promise<string[]> {
+  const snap = await adminDb
+    .collectionGroup("updates")
+    .where("uid", "==", uid)
+    .where("stage", "==", "present")
+    .orderBy("createdAt", "asc")
+    .get();
+
+  const firstByProspect = new Map<string, string>();
+  snap.docs.forEach((doc) => {
+    const prospectId = doc.ref.parent.parent!.id;
+    if (firstByProspect.has(prospectId)) return; // ascending order — first occurrence is the earliest
+    const createdAt = doc.data().createdAt as { toDate: () => Date };
+    firstByProspect.set(prospectId, createdAt.toDate().toISOString());
+  });
+  return [...firstByProspect.values()];
+}
+
+function toActivityEntry(doc: QueryDocumentSnapshot<DocumentData>): ActivityEntry {
+  const data = doc.data() as ActivityDoc;
+  return {
+    id: doc.id,
+    uid: data.uid,
+    type: data.type,
+    reachCount: data.reachCount ?? 0,
+    note: data.note ?? null,
+    date: data.date,
+  };
+}
+
+/** Every logged activity for one daie (all-time — callers filter by month via lib/scoring.ts). */
+export async function getActivitiesForUid(uid: string): Promise<ActivityEntry[]> {
+  const snap = await adminDb.collection("activities").where("uid", "==", uid).get();
+  return snap.docs.map(toActivityEntry);
+}
+
+/** Everything computeMonthlyScore needs for one daie, fetched and combined in one call. */
+export async function getMonthlyScoreForUid(uid: string, monthKey: MonthKey): Promise<MonthlyScore> {
+  const [activities, presentDates, saleEntries] = await Promise.all([
+    getActivitiesForUid(uid),
+    getPresentStageFirstDatesForUid(uid),
+    getSaleEntriesForUids([uid]),
+  ]);
+  return computeMonthlyScore(monthKey, activities, presentDates, saleEntries);
+}
+
+// --- DM → DPM promotion-quota tracker ---------------------------------------
+
+export async function getWasitahSubscription(uid: string): Promise<{ active: boolean; since: string | null }> {
+  const doc = await adminDb.collection("wasitahSubscription").doc(uid).get();
+  if (!doc.exists) return { active: false, since: null };
+  const data = doc.data() as WasitahSubscriptionDoc;
+  return { active: data.active === true, since: data.since ?? null };
+}
+
+/** DM daie this uid directly recruited (uplineId === uid) — the "5 DM dilantik" pool, not the whole downline. */
+async function getDirectDmRecruits(uid: string): Promise<CurrentUser[]> {
+  const snap = await adminDb.collection("users").where("uplineId", "==", uid).where("rank", "==", "DM").get();
+  return snap.docs.map(toCurrentUser);
+}
+
+/**
+ * Full DM→DPM promotion status for one daie, as of today. Fetches this
+ * daie's own sales totals + Al Wasitah subscription, then the same for every
+ * DM they directly recruited (small N — bounded by the 5-DM quota itself,
+ * not a whole downline scan), and hands it all to the pure calculator in
+ * lib/promotion.ts.
+ */
+export async function getDpmPromotionStatusForUid(user: CurrentUser): Promise<DpmPromotionStatus> {
+  const asOfIso = new Date().toISOString().slice(0, 10);
+  const [totals, selfWasitah, recruits] = await Promise.all([
+    getSalesTotalsForUid(user.uid),
+    getWasitahSubscription(user.uid),
+    getDirectDmRecruits(user.uid),
+  ]);
+
+  const recruitInputs: RecruitInput[] = await Promise.all(
+    recruits.map(async (r): Promise<RecruitInput> => {
+      const [recruitTotals, recruitWasitah] = await Promise.all([getSalesTotalsForUid(r.uid), getWasitahSubscription(r.uid)]);
+      return {
+        uid: r.uid,
+        name: r.name,
+        perancangan: recruitTotals.perancangan,
+        wasitahActive: recruitWasitah.active,
+        wasitahSince: recruitWasitah.since,
+      };
+    }),
+  );
+
+  return computeDpmPromotionStatus({
+    asOfIso,
+    alWasitahKes: totals.pengurusanBerlian + totals.pengurusanMutiara,
+    perancangan: totals.perancangan,
+    dateLicensed: user.dateLicensed,
+    selfWasitahActive: selfWasitah.active,
+    recruits: recruitInputs,
+  });
 }
 
 // Re-exported for existing server-side call sites — the real definition

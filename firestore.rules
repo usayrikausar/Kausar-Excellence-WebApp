@@ -6,9 +6,13 @@ rules_version = '2';
 // - users/{uid}            → { daieId, name, email, rank, unitId, uplineId,
 //                              lineagePath, structureType, subscriptionStatus,
 //                              isGroupAdmin }
-// - sales/{id}             → { uid, category, subCategory, amount, count, date, createdAt }
-// - collections/{id}       → { uid, saleRef, amountCollected, date }
+// - sales/{id}             → { uid, category, subCategory, amount, count, date, createdAt, prospectId? }
+// - collections/{id}       → { uid, saleRef, amountCollected, date, createdAt, prospectId? }
 // - bulletins/{id}         → { title, body, imageUrl, publishAt, createdBy }
+// - prospects/{id}         → { uid, name, phone, details, source, stage, status,
+//                              nextFollowUpDate, linkedSaleId, createdAt, updatedAt }
+//   prospects/{id}/updates/{id} → { uid, stage, note, nextFollowUpDate, createdAt }
+// - activities/{id}        → { uid, type, reachCount, note, date, createdAt }
 //
 // Hierarchy model: 5 independent unit pyramids, KDE > DPM > DM. A DPM/DM must
 // only ever see their own lineage (self + downline). lineagePath on a user
@@ -107,11 +111,65 @@ service cloud.firestore {
       allow write: if signedIn() && uid == request.auth.uid;
     }
 
+    // wasitahSubscription/{uid} — a daie's own self-reported Al Wasitah
+    // subscription status (active + since date), used by the DM→DPM
+    // promotion-quota tracker. Same self-write/upline-read shape as goals —
+    // doc id IS the uid.
+    match /wasitahSubscription/{uid} {
+      allow read: if isGroupAdmin() || uid == request.auth.uid || isOwnLineage(uid);
+      allow write: if signedIn() && uid == request.auth.uid;
+    }
+
     // achievements/{id} — badges manually awarded by a group admin, shown on
     // the recipient's Wall of Fame. Same read scoping as contestProgress.
     match /achievements/{id} {
       allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
       allow write: if isGroupAdmin();
+    }
+
+    // prospects/{id} — the PIPPPAS pipeline. A daie can only ever create/own
+    // their own prospects; their upline (and group admins) can read for
+    // team-reporting (Reports' Team Traffic Light) but never write someone
+    // else's pipeline.
+    match /prospects/{prospectId} {
+      allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if signedIn() && resource.data.uid == request.auth.uid;
+      allow delete: if false;
+
+      // updates/{updateId} — one dated note per stage change, written on
+      // every stage change including the initial one at creation. uid is
+      // denormalized onto each update doc (see ProspectUpdateDoc in
+      // lib/types.ts) so a collectionGroup("updates") query can filter by
+      // daie directly, without a get() per prospect — used to score
+      // "first time reached Present" for the traffic-light presentation
+      // count. Append-only: no edit/delete once written.
+      //
+      // Create only checks the update doc's own uid, NOT a get() against the
+      // parent prospect doc — a new prospect and its first update are
+      // written in the same client batch, and a batch's security-rule
+      // evaluation sees the database as it was BEFORE the batch, so the
+      // parent wouldn't exist yet from the rule's point of view and every
+      // first-update write would be denied. The read rule below still
+      // cross-checks the parent (which by read time always exists), so this
+      // doesn't weaken who can ever see an update — only who could write a
+      // stray one under someone else's prospect id, which is harmless
+      // clutter neither party could read back per the rule below anyway.
+      match /updates/{updateId} {
+        allow read: if isGroupAdmin() || isOwnLineage(get(/databases/$(database)/documents/prospects/$(prospectId)).data.uid);
+        allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // activities/{id} — logged prospecting/training activities (booth, live
+    // TikTok, Project 200 calls, training attended, etc.), not necessarily
+    // tied to one named prospect. Same self-write/lineage-read shape as
+    // sales/collections.
+    match /activities/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
+      allow update, delete: if false;
     }
   }
 }

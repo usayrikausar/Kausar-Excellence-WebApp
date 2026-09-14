@@ -9,9 +9,35 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Plain, minimal prospect shape — avoids importing ProspectWithId from the "server-only" lib/data.ts into these Client Components. */
+export interface ProspectOption {
+  id: string;
+  name: string;
+}
+
+/** Optional "link to a prospect" picker, shared by every entry form below — lets a sale/collection entered the normal way still be tied back to a pipeline prospect (see prospect-detail-dialog.tsx's "Close & Record Sale" for the other path). */
+function ProspectLinkSelect({ prospects, value, onChange, idPrefix }: { prospects: ProspectOption[]; value: string; onChange: (v: string) => void; idPrefix: string }) {
+  if (prospects.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={`${idPrefix}-prospect`}>Link to a prospect (optional)</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={`${idPrefix}-prospect`}><SelectValue placeholder="None" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">None</SelectItem>
+          {prospects.map((p) => (
+            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
 }
 
 function StatusMessage({ status }: { status: "idle" | "saving" | "saved" | "error" }) {
@@ -20,10 +46,11 @@ function StatusMessage({ status }: { status: "idle" | "saving" | "saved" | "erro
   return null;
 }
 
-export function PerancanganForm({ uid }: { uid: string }) {
+export function PerancanganForm({ uid, prospects = [] }: { uid: string; prospects?: ProspectOption[] }) {
   const router = useRouter();
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(todayISO());
+  const [prospectId, setProspectId] = useState("none");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   async function handleSubmit(e: React.FormEvent) {
@@ -38,8 +65,10 @@ export function PerancanganForm({ uid }: { uid: string }) {
         count: null,
         date: Timestamp.fromDate(new Date(date)),
         createdAt: serverTimestamp(),
+        prospectId: prospectId === "none" ? null : prospectId,
       });
       setAmount("");
+      setProspectId("none");
       setStatus("saved");
       router.refresh();
     } catch {
@@ -71,6 +100,7 @@ export function PerancanganForm({ uid }: { uid: string }) {
             <Label htmlFor="perancangan-date">Date</Label>
             <Input id="perancangan-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
+          <ProspectLinkSelect prospects={prospects} value={prospectId} onChange={setProspectId} idPrefix="perancangan" />
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={status === "saving"}>
               {status === "saving" ? "Saving…" : "Add entry"}
@@ -83,11 +113,12 @@ export function PerancanganForm({ uid }: { uid: string }) {
   );
 }
 
-export function PengurusanForm({ uid }: { uid: string }) {
+export function PengurusanForm({ uid, prospects = [] }: { uid: string; prospects?: ProspectOption[] }) {
   const router = useRouter();
   const [subCategory, setSubCategory] = useState<"berlian" | "mutiara">("berlian");
   const [count, setCount] = useState("");
   const [date, setDate] = useState(todayISO());
+  const [prospectId, setProspectId] = useState("none");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   async function handleSubmit(e: React.FormEvent) {
@@ -102,8 +133,10 @@ export function PengurusanForm({ uid }: { uid: string }) {
         count: Number(count),
         date: Timestamp.fromDate(new Date(date)),
         createdAt: serverTimestamp(),
+        prospectId: prospectId === "none" ? null : prospectId,
       });
       setCount("");
+      setProspectId("none");
       setStatus("saved");
       router.refresh();
     } catch {
@@ -152,6 +185,7 @@ export function PengurusanForm({ uid }: { uid: string }) {
             <Label htmlFor="pengurusan-date">Date</Label>
             <Input id="pengurusan-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
+          <ProspectLinkSelect prospects={prospects} value={prospectId} onChange={setProspectId} idPrefix="pengurusan" />
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={status === "saving"}>
               {status === "saving" ? "Saving…" : "Add entry"}
@@ -164,11 +198,12 @@ export function PengurusanForm({ uid }: { uid: string }) {
   );
 }
 
-export function KesPusakaForm({ uid }: { uid: string }) {
+export function KesPusakaForm({ uid, prospects = [] }: { uid: string; prospects?: ProspectOption[] }) {
   const router = useRouter();
   const [subCategory, setSubCategory] = useState<"besar" | "kecil">("besar");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(todayISO());
+  const [prospectId, setProspectId] = useState("none");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   async function handleSubmit(e: React.FormEvent) {
@@ -183,8 +218,10 @@ export function KesPusakaForm({ uid }: { uid: string }) {
         count: null,
         date: Timestamp.fromDate(new Date(date)),
         createdAt: serverTimestamp(),
+        prospectId: prospectId === "none" ? null : prospectId,
       });
       setAmount("");
+      setProspectId("none");
       setStatus("saved");
       router.refresh();
     } catch {
@@ -229,6 +266,79 @@ export function KesPusakaForm({ uid }: { uid: string }) {
             <Label htmlFor="kespusaka-date">Date</Label>
             <Input id="kespusaka-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
+          <ProspectLinkSelect prospects={prospects} value={prospectId} onChange={setProspectId} idPrefix="kespusaka" />
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={status === "saving"}>
+              {status === "saving" ? "Saving…" : "Add entry"}
+            </Button>
+            <StatusMessage status={status} />
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * There was previously no way to enter a Collection at all — lib/data.ts
+ * read from the `collections` collection, but nothing wrote to it. Mirrors
+ * the sales-entry forms above: standalone amount + date, with the same
+ * optional prospect link (saleRef is left null — no UI here to pick which
+ * specific prior sale a payment is against, that's a bigger feature).
+ */
+export function CollectionForm({ uid, prospects = [] }: { uid: string; prospects?: ProspectOption[] }) {
+  const router = useRouter();
+  const [amountCollected, setAmountCollected] = useState("");
+  const [date, setDate] = useState(todayISO());
+  const [prospectId, setProspectId] = useState("none");
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setStatus("saving");
+    try {
+      await addDoc(collection(db, "collections"), {
+        uid,
+        saleRef: null,
+        amountCollected: Number(amountCollected),
+        date: Timestamp.fromDate(new Date(date)),
+        createdAt: serverTimestamp(),
+        prospectId: prospectId === "none" ? null : prospectId,
+      });
+      setAmountCollected("");
+      setProspectId("none");
+      setStatus("saved");
+      router.refresh();
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Collection</CardTitle>
+        <CardDescription>Payment received — enter the RM amount collected.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="collection-amount">Amount collected (RM)</Label>
+            <Input
+              id="collection-amount"
+              type="number"
+              min={0}
+              step="0.01"
+              required
+              value={amountCollected}
+              onChange={(e) => setAmountCollected(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="collection-date">Date</Label>
+            <Input id="collection-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <ProspectLinkSelect prospects={prospects} value={prospectId} onChange={setProspectId} idPrefix="collection" />
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={status === "saving"}>
               {status === "saving" ? "Saving…" : "Add entry"}

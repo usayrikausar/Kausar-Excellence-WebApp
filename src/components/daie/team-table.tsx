@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PaginationFooter } from "@/components/ui/pagination-footer";
 import { unitLabel } from "@/lib/constants";
 import type { CurrentUser } from "@/lib/types";
 import { contractExpiryDate, formatDate, formatRM, isActiveStatus } from "@/lib/utils";
@@ -172,15 +172,7 @@ export function TeamTable({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end gap-2 border-t border-border p-3">
-        <Button variant="outline" size="sm" disabled={clampedPage <= 1} onClick={() => setPage((p) => p - 1)}>
-          Previous
-        </Button>
-        <span className="text-sm text-muted-foreground">Page {clampedPage} of {totalPages}</span>
-        <Button variant="outline" size="sm" disabled={clampedPage >= totalPages} onClick={() => setPage((p) => p + 1)}>
-          Next
-        </Button>
-      </div>
+      <PaginationFooter page={clampedPage} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );
 }

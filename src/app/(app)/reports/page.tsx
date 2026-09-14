@@ -1,11 +1,13 @@
 import { Users } from "lucide-react";
 import { requireDaie } from "@/lib/auth/session";
-import { getSalesSummary, getSaleEntriesForUids, getTeamWithTotals } from "@/lib/data";
+import { getSalesSummary, getSaleEntriesForUids, getTeamWithTotals, getMonthlyScoreForUid } from "@/lib/data";
+import { currentMonthKey } from "@/lib/scoring";
 import { KpiTile } from "@/components/daie/kpi-tile";
 import { SalesComparison } from "@/components/daie/sales-totals";
 import { ExportSalesCsvButton } from "@/components/daie/export-sales-csv-button";
 import { PersonalProductionReport } from "@/components/daie/personal-production-report";
 import { TopProducersTable } from "@/components/daie/top-producers-table";
+import { TeamTrafficLightTable } from "@/components/daie/team-traffic-light-table";
 import { ComingSoon } from "@/components/daie/coming-soon";
 
 // The real Reports builder (fully customizable columns/sorting/filters,
@@ -28,6 +30,16 @@ export default async function ReportsPage() {
     getSaleEntriesForUids([user.uid]),
     getSaleEntriesForUids([user.uid, ...team.map((m) => m.uid)]),
   ]);
+
+  const monthKey = currentMonthKey();
+  const teamScores = await Promise.all(
+    team.map(async (member) => ({
+      uid: member.uid,
+      name: member.name,
+      daieId: member.daieId,
+      score: await getMonthlyScoreForUid(member.uid, monthKey),
+    })),
+  );
 
   return (
     <div className="space-y-6">
@@ -57,6 +69,7 @@ export default async function ReportsPage() {
       <PersonalProductionReport entries={personalEntries} title="My Production" />
       {team.length > 0 && <PersonalProductionReport entries={groupEntries} title="My Total Group Production" />}
       {team.length > 0 && <TopProducersTable producers={team} />}
+      {team.length > 0 && <TeamTrafficLightTable rows={teamScores} />}
 
       <ComingSoon title="Reports (full customizable builder)" phase={2} />
     </div>

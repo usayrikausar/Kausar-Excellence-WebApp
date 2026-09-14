@@ -1,7 +1,8 @@
 import { requireDaie } from "@/lib/auth/session";
-import { getContests, getContestProgressForUids, getGoal, getDownline, getSalesTotalsForUid } from "@/lib/data";
+import { getContests, getContestProgressForUids, getGoal, getDownline, getSalesTotalsForUid, getDpmPromotionStatusForUid, getWasitahSubscription } from "@/lib/data";
 import { ContestCard } from "@/components/daie/contest-card";
 import { GoalForm } from "@/components/daie/goal-form";
+import { PathToDpmCard } from "@/components/daie/path-to-dpm-card";
 import { CreateContestForm } from "@/components/admin/create-contest-form";
 import { EditContestDialog } from "@/components/admin/edit-contest-dialog";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,11 +12,13 @@ export default async function MyGoalPage() {
   const downline = await getDownline(user);
   const uids = [user.uid, ...downline.map((m) => m.uid)];
 
-  const [contests, progress, goal, personalTotals] = await Promise.all([
+  const [contests, progress, goal, personalTotals, promotionStatus, selfWasitah] = await Promise.all([
     getContests(),
     getContestProgressForUids(uids),
     getGoal(user.uid),
     getSalesTotalsForUid(user.uid),
+    user.rank === "DM" ? getDpmPromotionStatusForUid(user) : Promise.resolve(null),
+    user.rank === "DM" ? getWasitahSubscription(user.uid) : Promise.resolve(null),
   ]);
 
   const amountByContestAndUid = new Map<string, number>();
@@ -40,6 +43,8 @@ export default async function MyGoalPage() {
       </div>
 
       <GoalForm uid={user.uid} salesGoal={goal?.salesGoal ?? null} incomeGoal={goal?.incomeGoal ?? null} personalSalesTotal={personalSalesTotal} />
+
+      {promotionStatus && selfWasitah && <PathToDpmCard uid={user.uid} status={promotionStatus} selfWasitah={selfWasitah} />}
 
       {user.isGroupAdmin && (
         <div className="space-y-3">

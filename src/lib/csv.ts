@@ -13,6 +13,60 @@ function escapeCsvCell(value: string): string {
   return value;
 }
 
+/**
+ * Minimal RFC4180-ish CSV parser (quoted fields, escaped "" quotes, commas
+ * and newlines inside quotes) — for importing a prospect list edited in
+ * Excel back into the app. Character-by-character rather than a regex/split
+ * because embedded newlines inside a quoted cell make line-based splitting
+ * unreliable.
+ */
+export function parseCsv(text: string): string[][] {
+  // Strip a UTF-8 BOM if present (downloadCsv writes one).
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (char === "\r") {
+      // skip — the \n right after (or a lone \r) ends the row
+    } else if (char === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+  // Final cell/row if the file doesn't end with a newline.
+  if (cell !== "" || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  return rows.filter((r) => !(r.length === 1 && r[0].trim() === ""));
+}
+
 export function downloadCsv(filename: string, headers: string[], rows: string[][]) {
   // ﻿ (UTF-8 BOM) so Excel on Windows renders non-ASCII names (e.g.
   // "Muhammad Fazli") correctly instead of guessing the wrong encoding.

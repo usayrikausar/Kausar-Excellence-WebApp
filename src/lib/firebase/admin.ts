@@ -21,8 +21,19 @@ function getAdminApp(): App {
   // Against the emulator, the Admin SDK just needs a projectId — it never
   // calls out to real GCP credentials as long as the *_EMULATOR_HOST env vars
   // are set (they are, via .env.local).
+  //
+  // Deliberately keyed off NEXT_PUBLIC_USE_FIREBASE_EMULATOR rather than the
+  // mere presence of FIRESTORE_EMULATOR_HOST — Next.js env-file precedence
+  // only lets a higher-priority file (.env.production.local) override a
+  // variable it explicitly redefines, so .env.local's server-only
+  // *_EMULATOR_HOST vars silently leak through into a "production" run that
+  // never mentions them. The underlying @google-cloud client libraries treat
+  // FIRESTORE_EMULATOR_HOST's mere presence as authoritative regardless of
+  // any credential passed to initializeApp, which quietly redirected a real
+  // production run at the local emulator until this was keyed off the one
+  // flag both env files always define explicitly.
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? process.env.GCLOUD_PROJECT;
-  const usingEmulator = !!process.env.FIRESTORE_EMULATOR_HOST;
+  const usingEmulator = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === "true";
 
   // Passing an explicit `credential: undefined` key (rather than omitting it)
   // trips firebase-admin's options validation, so build the options object
