@@ -171,5 +171,49 @@ service cloud.firestore {
       allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
       allow update, delete: if false;
     }
+
+    // trainings/{id} — CPD & Training sessions, either run by Kausar
+    // (QR self-check-in) or by Wasiyyah (self-reported, Kausar doesn't
+    // control the venue). Any signed-in daie reads the catalog; only group
+    // admins create/edit them.
+    match /trainings/{id} {
+      allow read: if signedIn();
+      allow write: if isGroupAdmin();
+    }
+
+    // trainingAttendance/{id} — one record per (training, daie), doc id
+    // "{trainingId}_{uid}" so a create-only rule naturally prevents a second
+    // attendance record for the same person (Firestore's `create` check only
+    // ever applies to a not-yet-existing doc id). Three ways a record can be
+    // written:
+    //  - method "qr": the caller marks themselves present, but only if the
+    //    qrToken they present matches the target training's own qrToken —
+    //    this is what actually enforces "you had to see the code," not just
+    //    self-attestation.
+    //  - method "self_reported": the caller marks themselves present with no
+    //    token check, for Wasiyyah-run sessions Kausar has no QR for.
+    //  - method "manual": a group admin override (e.g. someone without a
+    //    phone to scan with) — markedBy is the admin's own uid, not the
+    //    attendee's, so the audit trail shows who applied it.
+    // No client update/delete — attendance is an append-only ledger, same
+    // rationale as sales/collections/activities.
+    match /trainingAttendance/{id} {
+      allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
+
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.markedBy == request.auth.uid
+        && (
+          request.resource.data.method == "self_reported" ||
+          (request.resource.data.method == "qr" &&
+            request.resource.data.qrToken == get(/databases/$(database)/documents/trainings/$(request.resource.data.trainingId)).data.qrToken)
+        );
+
+      allow create: if isGroupAdmin()
+        && request.resource.data.method == "manual"
+        && request.resource.data.markedBy == request.auth.uid;
+
+      allow update, delete: if false;
+    }
   }
 }

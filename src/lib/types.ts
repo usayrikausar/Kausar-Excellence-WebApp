@@ -177,6 +177,49 @@ export interface AchievementDoc {
   createdAt: unknown;
 }
 
+// --- CPD & Training -----------------------------------------------------
+
+/** Who ran the session — drives which attendance method is even possible: Kausar sessions get a QR self-check-in, Wasiyyah's own sessions (Kausar doesn't control the venue) rely on self-reporting. */
+export type TrainingProvider = "kausar" | "wasiyyah";
+
+export interface TrainingDoc {
+  title: string;
+  description: string | null;
+  provider: TrainingProvider;
+  cpdHours: number;
+  date: string; // ISO date
+  location: string | null;
+  /** Random unguessable token embedded in the check-in QR — only set for provider "kausar". Not a strong security boundary (anyone who sees the QR can check in as themselves), just enough to stop someone guessing a training id and self-checking-in without ever seeing the code. */
+  qrToken: string | null;
+  createdBy: string;
+  createdAt: unknown;
+}
+
+/** Client-safe shape of one training — createdAt (a Timestamp) is dropped, same rationale as ProspectWithId. */
+export interface TrainingWithId extends Omit<TrainingDoc, "createdAt"> {
+  id: string;
+}
+
+export type AttendanceMethod = "qr" | "self_reported" | "manual";
+
+export interface TrainingAttendanceDoc {
+  trainingId: string;
+  uid: string;
+  method: AttendanceMethod;
+  /** Only present for method "qr" — the token the client presented, checked against the training's own qrToken by firestore.rules. Kept on the doc afterward as a lightweight audit trail. */
+  qrToken: string | null;
+  markedBy: string; // uid of whoever wrote this doc — self, except for method "manual" (an admin override)
+  markedAt: unknown;
+}
+
+export interface TrainingAttendanceEntry {
+  id: string;
+  trainingId: string;
+  uid: string;
+  method: AttendanceMethod;
+  markedAt: string; // ISO
+}
+
 // --- PIPPPAS pipeline (Activities) ------------------------------------------
 
 /** Where a lead came from — shared between a prospect's origin and a logged activity's type. */

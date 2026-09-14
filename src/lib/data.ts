@@ -26,6 +26,10 @@ import type {
   ActivityEntry,
   WasitahSubscriptionDoc,
   CollectionEntry,
+  TrainingDoc,
+  TrainingWithId,
+  TrainingAttendanceDoc,
+  TrainingAttendanceEntry,
 } from "@/lib/types";
 import { UNIT_LABELS } from "@/lib/constants";
 import { isActiveStatus } from "@/lib/utils";
@@ -94,6 +98,19 @@ export async function getUserByUid(uid: string): Promise<CurrentUser | null> {
   const doc = await adminDb.collection("users").doc(uid).get();
   if (!doc.exists) return null;
   return toCurrentUser(doc as QueryDocumentSnapshot<DocumentData>);
+}
+
+/** Batched getUserByUid for a list of uids (e.g. resolving names for a training's attendance list) — chunked the same way as getSaleEntriesForUids. */
+export async function getUsersByUids(uids: string[]): Promise<CurrentUser[]> {
+  const unique = [...new Set(uids)];
+  if (unique.length === 0) return [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += 30) chunks.push(unique.slice(i, i + 30));
+
+  const results = await Promise.all(
+    chunks.map((chunk) => adminDb.collection("users").where("__name__", "in", chunk).get()),
+  );
+  return results.flatMap((snap) => snap.docs.map(toCurrentUser));
 }
 
 /** Everyone in `user`'s downline (does NOT include `user` themself). Group admins get everyone. */
@@ -581,6 +598,104 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
       konvensyenQualified: konvensyen.every((c) => c.met),
     };
   });
+}
+
+// --- CPD & Training -----------------------------------------------------
+
+function toTrainingWithId(doc: QueryDocumentSnapshot<DocumentData>): TrainingWithId {
+  const data = doc.data() as TrainingDoc;
+  return {
+    id: doc.id,
+    title: data.title,
+    description: data.description ?? null,
+    provider: data.provider,
+    cpdHours: data.cpdHours,
+    date: data.date,
+    location: data.location ?? null,
+    qrToken: data.qrToken ?? null,
+    createdBy: data.createdBy,
+  };
+}
+
+export async function getTrainings(): Promise<TrainingWithId[]> {
+  const snap = await adminDb.collection("trainings").orderBy("date", "desc").get();
+  return snap.docs.map(toTrainingWithId);
+}
+
+export async function getTrainingById(id: string): Promise<TrainingWithId | null> {
+  const doc = await adminDb.collection("trainings").doc(id).get();
+  if (!doc.exists) return null;
+  return toTrainingWithId(doc as QueryDocumentSnapshot<DocumentData>);
+}
+
+function toTrainingAttendanceEntry(doc: QueryDocumentSnapshot<DocumentData>): TrainingAttendanceEntry {
+  const data = doc.data() as TrainingAttendanceDoc;
+  const markedAt = data.markedAt as unknown as { toDate: () => Date } | null;
+  return {
+    id: doc.id,
+    trainingId: data.trainingId,
+    uid: data.uid,
+    method: data.method,
+    markedAt: markedAt ? markedAt.toDate().toISOString() : new Date().toISOString(),
+  };
+}
+
+/** One specific (training, uid) attendance record, or null — for the QR check-in page's "have you already checked in" check. */
+export async function getAttendanceRecordForUid(trainingId: string, uid: string): Promise<TrainingAttendanceEntry | null> {
+  const doc = await adminDb.collection("trainingAttendance").doc(`${trainingId}_${uid}`).get();
+  if (!doc.exists) return null;
+  return toTrainingAttendanceEntry(doc as QueryDocumentSnapshot<DocumentData>);
+}
+
+/** Every attendance record for one training — for the admin's per-training attendee list. */
+export async function getAttendanceForTraining(trainingId: string): Promise<TrainingAttendanceEntry[]> {
+  const snap = await adminDb.collection("trainingAttendance").where("trainingId", "==", trainingId).get();
+  return snap.docs.map(toTrainingAttendanceEntry);
+}
+
+/** Every attendance record for one daie — for their own CPD summary. */
+export async function getAttendanceForUid(uid: string): Promise<TrainingAttendanceEntry[]> {
+  const snap = await adminDb.collection("trainingAttendance").where("uid", "==", uid).get();
+  return snap.docs.map(toTrainingAttendanceEntry);
+}
+
+/** Every attendance record across the whole app — for the admin CPD export (detail + summary are both derived from this one query rather than one query per daie). */
+export async function getAllTrainingAttendance(): Promise<TrainingAttendanceEntry[]> {
+  const snap = await adminDb.collection("trainingAttendance").get();
+  return snap.docs.map(toTrainingAttendanceEntry);
+}
+
+export interface CpdSummary {
+  totalHours: number;
+  kausarHours: number;
+  wasiyyahHours: number;
+  records: Array<{ training: TrainingWithId; method: TrainingAttendanceEntry["method"]; markedAt: string }>;
+}
+
+/** One daie's full CPD picture — total hours (split by provider) and the underlying list of attended trainings, joined in-memory against the (already-fetched) training catalog. */
+export function computeCpdSummary(attendance: TrainingAttendanceEntry[], trainingsById: Map<string, TrainingWithId>): CpdSummary {
+  const records = attendance
+    .map((a) => {
+      const training = trainingsById.get(a.trainingId);
+      return training ? { training, method: a.method, markedAt: a.markedAt } : null;
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+    .sort((a, b) => b.training.date.localeCompare(a.training.date));
+
+  let kausarHours = 0;
+  let wasiyyahHours = 0;
+  for (const r of records) {
+    if (r.training.provider === "kausar") kausarHours += r.training.cpdHours;
+    else wasiyyahHours += r.training.cpdHours;
+  }
+
+  return { totalHours: kausarHours + wasiyyahHours, kausarHours, wasiyyahHours, records };
+}
+
+export async function getCpdSummaryForUid(uid: string): Promise<CpdSummary> {
+  const [attendance, trainings] = await Promise.all([getAttendanceForUid(uid), getTrainings()]);
+  const trainingsById = new Map(trainings.map((t) => [t.id, t]));
+  return computeCpdSummary(attendance, trainingsById);
 }
 
 // Re-exported for existing server-side call sites — the real definition

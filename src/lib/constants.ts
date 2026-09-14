@@ -105,7 +105,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/my-onboarding", label: "My Onboarding", phase: 2 },
   { href: "/sales", label: "Sales & Collection" },
   { href: "/activities", label: "Activities" },
-  { href: "/cpd", label: "CPD & Training", phase: 2 },
+  { href: "/cpd", label: "CPD & Training" },
   { href: "/ldp", label: "LDP", phase: 2, ldpOnly: true },
   { href: "/leaders-tool", label: "Leaders Tool", phase: 2, ldpOnly: true },
   { href: "/mr-k", label: "Mr K", phase: 3 },
