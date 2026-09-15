@@ -32,7 +32,7 @@ function konv(row: TeamReportRow, label: string) {
   return row.konvensyen.find((c) => c.label === label) ?? null;
 }
 
-type TrafficSortKey = "status" | "name" | "daieId" | "training" | "reach" | "presentations" | "sales" | "total";
+type TrafficSortKey = "status" | "name" | "daieId" | "training" | "reach" | "presentations" | "prosper" | "sales" | "total";
 type SalesSortKey = "name" | "daieId" | "rank" | "perancangan" | "wasiat" | "hibah" | "berlian" | "mutiara" | "besar" | "kecil" | "collection";
 type KonvensyenSortKey = "name" | "daieId" | "alWasitah" | "hibah" | "pusaka" | "rookieAlWasitah" | "rookiePerancangan" | "qualified";
 
@@ -55,6 +55,7 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
         case "training": return row.score.training.points;
         case "reach": return row.score.reach.points;
         case "presentations": return row.score.presentations.points;
+        case "prosper": return row.score.prosperInvites.points;
         case "sales": return row.score.sales.points;
         case "total": return row.score.total;
       }
@@ -147,6 +148,7 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Training" sortKey="training" activeSortKey={trafficSort.key} direction={trafficSort.dir} onSort={(k) => toggleSort(trafficSort, k, setTrafficSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Reach" sortKey="reach" activeSortKey={trafficSort.key} direction={trafficSort.dir} onSort={(k) => toggleSort(trafficSort, k, setTrafficSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Presentations" sortKey="presentations" activeSortKey={trafficSort.key} direction={trafficSort.dir} onSort={(k) => toggleSort(trafficSort, k, setTrafficSort)} /></th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="PROSPER" sortKey="prosper" activeSortKey={trafficSort.key} direction={trafficSort.dir} onSort={(k) => toggleSort(trafficSort, k, setTrafficSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Sales" sortKey="sales" activeSortKey={trafficSort.key} direction={trafficSort.dir} onSort={(k) => toggleSort(trafficSort, k, setTrafficSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Total" sortKey="total" activeSortKey={trafficSort.key} direction={trafficSort.dir} onSort={(k) => toggleSort(trafficSort, k, setTrafficSort)} /></th>
                 </tr>
@@ -161,6 +163,7 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
                     <td className="px-3 py-2 text-right text-ink">{row.score.training.points}</td>
                     <td className="px-3 py-2 text-right text-ink">{row.score.reach.points}</td>
                     <td className="px-3 py-2 text-right text-ink">{row.score.presentations.points}</td>
+                    <td className="px-3 py-2 text-right text-ink">{row.score.prosperInvites.points}</td>
                     <td className="px-3 py-2 text-right text-ink">{row.score.sales.points}</td>
                     <td className="px-3 py-2 text-right font-semibold text-ink">{row.score.total}</td>
                   </tr>

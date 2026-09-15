@@ -242,6 +242,7 @@ export const PROSPECT_SOURCES = [
   "referral",
   "talk",
   "training",
+  "prosper_invite",
   "project200",
   "other",
 ] as const;

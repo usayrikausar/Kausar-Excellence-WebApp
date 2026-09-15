@@ -24,7 +24,7 @@ export function LogActivityForm({ uid }: { uid: string }) {
   const [note, setNote] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
 
-  const isTraining = type === "training";
+  const hidesReachCount = type === "training" || type === "prosper_invite";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -33,7 +33,7 @@ export function LogActivityForm({ uid }: { uid: string }) {
       await addDoc(collection(db, "activities"), {
         uid,
         type,
-        reachCount: isTraining ? 0 : Number(reachCount) || 0,
+        reachCount: hidesReachCount ? 0 : Number(reachCount) || 0,
         note: note || null,
         date,
         createdAt: serverTimestamp(),
@@ -51,7 +51,7 @@ export function LogActivityForm({ uid }: { uid: string }) {
     <Card>
       <CardHeader>
         <CardTitle>Log an activity</CardTitle>
-        <CardDescription>Booth, live TikTok, Project 200 calls, training attended — whatever you did today.</CardDescription>
+        <CardDescription>Booth, live TikTok, Project 200 calls, training attended, PROSPER invites sent — whatever you did today.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
@@ -67,7 +67,7 @@ export function LogActivityForm({ uid }: { uid: string }) {
             </Select>
           </div>
 
-          {!isTraining && (
+          {!hidesReachCount && (
             <div className="space-y-2">
               <Label htmlFor="activity-reach">People reached</Label>
               <Input id="activity-reach" type="number" min={0} step="1" value={reachCount} onChange={(e) => setReachCount(e.target.value)} />

@@ -34,11 +34,12 @@ export const STAGE_LABELS: Record<PipppasStage, string> = {
 
 /**
  * Shared between a prospect's lead source and a logged activity's type — see
- * PROSPECT_SOURCES in lib/types.ts. "training" is only ever offered as an
- * *activity* type (see log-activity-form.tsx) — new-prospect-dialog.tsx
- * filters it out of the Source picker, since "how did you meet this
- * prospect" and "I attended a training session" aren't the same kind of
- * thing, even though both feed the same reach/traffic-light bookkeeping.
+ * PROSPECT_SOURCES in lib/types.ts. "training" and "prosper_invite" are only
+ * ever offered as *activity* types (see log-activity-form.tsx) —
+ * new-prospect-dialog.tsx filters both out of the Source picker, since "how
+ * did you meet this prospect" and "I attended a training session" / "I
+ * invited someone to a PROSPER BOP event" aren't the same kind of thing,
+ * even though both feed the same reach/traffic-light bookkeeping.
  */
 export const SOURCE_LABELS: Record<ProspectSource, string> = {
   booth: "Booth",
@@ -48,6 +49,7 @@ export const SOURCE_LABELS: Record<ProspectSource, string> = {
   referral: "Referral",
   talk: "Talk",
   training: "Training",
+  prosper_invite: "PROSPER Invite",
   project200: "Project 200",
   other: "Other",
 };

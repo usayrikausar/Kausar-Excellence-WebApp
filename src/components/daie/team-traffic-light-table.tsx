@@ -32,7 +32,7 @@ export function TeamTrafficLightTable({ rows }: { rows: TeamScoreRow[] }) {
     <Card>
       <CardHeader>
         <CardTitle>Team Traffic Light</CardTitle>
-        <CardDescription>This month&rsquo;s behavior score for your downline — training, reach, presentations, closed sales.</CardDescription>
+        <CardDescription>This month&rsquo;s behavior score for your downline — training, reach, presentations, PROSPER invites, closed sales.</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         {sorted.length === 0 ? (
@@ -48,6 +48,7 @@ export function TeamTrafficLightTable({ rows }: { rows: TeamScoreRow[] }) {
                   <TableHead className="text-right">Training</TableHead>
                   <TableHead className="text-right">Reach</TableHead>
                   <TableHead className="text-right">Presentations</TableHead>
+                  <TableHead className="text-right">PROSPER</TableHead>
                   <TableHead className="text-right">Sales</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead>Report card</TableHead>
@@ -62,6 +63,7 @@ export function TeamTrafficLightTable({ rows }: { rows: TeamScoreRow[] }) {
                     <TableCell className="text-right">{row.score.training.points}</TableCell>
                     <TableCell className="text-right">{row.score.reach.points}</TableCell>
                     <TableCell className="text-right">{row.score.presentations.points}</TableCell>
+                    <TableCell className="text-right">{row.score.prosperInvites.points}</TableCell>
                     <TableCell className="text-right">{row.score.sales.points}</TableCell>
                     <TableCell className="text-right font-semibold">{row.score.total}</TableCell>
                     <TableCell>

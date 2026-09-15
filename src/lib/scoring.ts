@@ -31,7 +31,10 @@ export const WEEKLY_TARGETS = {
 
 export const MONTHLY_SALES_TARGET = 10_000;
 
-export const POINTS_PER_CRITERION = 25;
+/** Flat monthly minimum (not scaled by weeks-in-month, unlike the weekly-quota criteria) — inviting daie to a Wasiyyah PROSPER BOP event. */
+export const MONTHLY_PROSPER_TARGET = 2;
+
+export const POINTS_PER_CRITERION = 20;
 
 export type TrafficLightColor = "green" | "amber" | "red" | "black";
 
@@ -40,6 +43,7 @@ export interface MonthlyScore {
   training: { count: number; target: number; points: number };
   reach: { count: number; target: number; points: number };
   presentations: { count: number; target: number; points: number };
+  prosperInvites: { count: number; target: number; points: number };
   sales: { amount: number; target: number; points: number };
   total: number;
   color: TrafficLightColor;
@@ -71,9 +75,11 @@ export const TRAFFIC_LIGHT_STYLES: Record<TrafficLightColor, { label: string; or
 };
 
 /**
- * Computes one daie's monthly traffic-light score. Each of the 4 criteria is
- * binary (hit the scaled target → the full 25 points, miss it → 0) per the
- * agreed scoring model — no partial credit within a criterion.
+ * Computes one daie's monthly traffic-light score. Each of the 5 criteria is
+ * binary (hit the target → the full 20 points, miss it → 0) per the agreed
+ * scoring model — no partial credit within a criterion. Training, reach, and
+ * presentations scale their target by weeks-in-month; PROSPER invites and
+ * sales use a flat monthly target instead.
  *
  * @param activities this daie's logged activities (any month — filtered internally)
  * @param presentStageFirstDates the earliest "reached Present stage" date for each of this daie's prospects (one per prospect; see getPresentStageFirstDatesForUid)
@@ -100,18 +106,22 @@ export function computeMonthlyScore(
   const presentationTarget = Math.round(WEEKLY_TARGETS.presentations * weeks);
   const presentationPoints = presentationCount >= presentationTarget ? POINTS_PER_CRITERION : 0;
 
+  const prosperInviteCount = monthActivities.filter((a) => a.type === "prosper_invite").length;
+  const prosperInvitePoints = prosperInviteCount >= MONTHLY_PROSPER_TARGET ? POINTS_PER_CRITERION : 0;
+
   const salesAmount = saleEntries
     .filter((s) => isInMonth(s.date, monthKey) && (s.category === "perancangan" || s.category === "kesPusaka"))
     .reduce((sum, s) => sum + (s.amount ?? 0), 0);
   const salesPoints = salesAmount >= MONTHLY_SALES_TARGET ? POINTS_PER_CRITERION : 0;
 
-  const total = trainingPoints + reachPoints + presentationPoints + salesPoints;
+  const total = trainingPoints + reachPoints + presentationPoints + prosperInvitePoints + salesPoints;
 
   return {
     monthKey,
     training: { count: trainingCount, target: trainingTarget, points: trainingPoints },
     reach: { count: reachCount, target: reachTarget, points: reachPoints },
     presentations: { count: presentationCount, target: presentationTarget, points: presentationPoints },
+    prosperInvites: { count: prosperInviteCount, target: MONTHLY_PROSPER_TARGET, points: prosperInvitePoints },
     sales: { amount: salesAmount, target: MONTHLY_SALES_TARGET, points: salesPoints },
     total,
     color: colorFor(total),

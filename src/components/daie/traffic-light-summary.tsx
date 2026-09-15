@@ -20,28 +20,35 @@ export function TrafficLightSummary({ score, title = "This Month's Traffic Light
           <ProgressBar
             label={`Training (${score.training.count}/${score.training.target} sessions)`}
             value={score.training.points}
-            max={25}
+            max={20}
             accent={score.training.points ? "success" : "primary"}
             formatValue={(n) => `${n} pts`}
           />
           <ProgressBar
             label={`Reach (${score.reach.count}/${score.reach.target})`}
             value={score.reach.points}
-            max={25}
+            max={20}
             accent={score.reach.points ? "success" : "primary"}
             formatValue={(n) => `${n} pts`}
           />
           <ProgressBar
             label={`Presentations (${score.presentations.count}/${score.presentations.target})`}
             value={score.presentations.points}
-            max={25}
+            max={20}
             accent={score.presentations.points ? "success" : "primary"}
+            formatValue={(n) => `${n} pts`}
+          />
+          <ProgressBar
+            label={`PROSPER invites (${score.prosperInvites.count}/${score.prosperInvites.target})`}
+            value={score.prosperInvites.points}
+            max={20}
+            accent={score.prosperInvites.points ? "success" : "primary"}
             formatValue={(n) => `${n} pts`}
           />
           <ProgressBar
             label={`Closed sales (${formatRM(score.sales.amount)} / ${formatRM(score.sales.target)})`}
             value={score.sales.points}
-            max={25}
+            max={20}
             accent={score.sales.points ? "success" : "primary"}
             formatValue={(n) => `${n} pts`}
           />

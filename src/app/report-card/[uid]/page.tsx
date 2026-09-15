@@ -230,7 +230,7 @@ export default async function ReportCardPage({
         </div>
 
         <div className="border-b border-border px-9 py-5 print:break-inside-avoid">
-          <SectionTitle hint="Behaviour score · 4 criteria, 25 pts each">Monthly traffic light</SectionTitle>
+          <SectionTitle hint="Behaviour score · 5 criteria, 20 pts each">Monthly traffic light</SectionTitle>
           <div className="grid grid-cols-[150px_1fr] items-center gap-6">
             <div className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-border bg-muted p-4 text-center">
               <span className={cn("h-[30px] w-[30px] rounded-full border-[3px] border-white shadow-[0_0_0_1px_var(--color-border)]", TRAFFIC_LIGHT_STYLES[score.color].dotClassName)} />
@@ -245,6 +245,7 @@ export default async function ReportCardPage({
               <CriterionRow label="Training" value={score.training.count} target={score.training.target} met={score.training.points > 0} />
               <CriterionRow label="Reach" value={score.reach.count} target={score.reach.target} met={score.reach.points > 0} />
               <CriterionRow label="Presentations" value={score.presentations.count} target={score.presentations.target} met={score.presentations.points > 0} />
+              <CriterionRow label="PROSPER invites" value={score.prosperInvites.count} target={score.prosperInvites.target} met={score.prosperInvites.points > 0} />
               <CriterionRow label="Closed sales" value={score.sales.amount} target={score.sales.target} met={score.sales.points > 0} formatValue={(n) => formatRM(n)} />
             </div>
           </div>
