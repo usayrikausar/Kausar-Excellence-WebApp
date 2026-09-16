@@ -174,10 +174,17 @@ service cloud.firestore {
 
     // trainings/{id} — CPD & Training sessions, either run by Kausar
     // (QR self-check-in) or by Wasiyyah (self-reported, Kausar doesn't
-    // control the venue). Any signed-in daie reads the catalog; only group
-    // admins create/edit them.
+    // control the venue). Read is group-admin-only, NOT signedIn(): the
+    // daie-facing catalog and check-in pages are server-rendered via the
+    // Admin SDK (lib/data.ts's getTrainings/getTrainingById), which bypasses
+    // these rules entirely, so no legitimate client-side read ever needs
+    // this. Keeping it admin-only stops any signed-in daie from reading a
+    // training's qrToken directly off this doc and self-marking attendance
+    // without ever scanning the code — the trainingAttendance create rule's
+    // own get() lookup below is a privileged rules-engine call, not a client
+    // read, so it still works for real check-ins even with this locked down.
     match /trainings/{id} {
-      allow read: if signedIn();
+      allow read: if isGroupAdmin();
       allow write: if isGroupAdmin();
     }
 

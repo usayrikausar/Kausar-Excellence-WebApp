@@ -9,15 +9,18 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { randomBytes } from 'node:crypto';
 import { nextDaieId } from './daieId.js';
 
 const RANKS = ['KDE', 'DPM', 'DM'];
 const STRUCTURE_TYPES = ['TS', 'OS'];
 
-// Local-only convenience password for every account created through the
-// admin panel or the seed script — this only ever runs against the Firebase
-// emulators (see .env.local / lib/firebase/admin.ts), never a live project.
-const DEFAULT_PASSWORD = 'password123';
+// A fresh random password per account (shown once to the admin, who relays
+// it to the new daie) — never a shared/guessable default, since this runs
+// against the live project, not just the emulator.
+function generateTempPassword() {
+  return randomBytes(9).toString('base64url'); // 12 chars, URL-safe
+}
 
 async function requireGroupAdmin(request) {
   const callerUid = request.auth?.uid;
@@ -49,7 +52,8 @@ export const createUser = onCall(async (request) => {
   const db = getFirestore();
 
   const daieId = await nextDaieId(rank);
-  const authUser = await auth.createUser({ email, password: DEFAULT_PASSWORD, displayName: name });
+  const tempPassword = generateTempPassword();
+  const authUser = await auth.createUser({ email, password: tempPassword, displayName: name });
 
   const claims = { rank, unitId, isGroupAdmin: isGroupAdmin === true };
   await auth.setCustomUserClaims(authUser.uid, claims);
@@ -70,7 +74,7 @@ export const createUser = onCall(async (request) => {
     createdAt: FieldValue.serverTimestamp(),
   });
 
-  return { uid: authUser.uid, daieId, email, password: DEFAULT_PASSWORD };
+  return { uid: authUser.uid, daieId, email, password: tempPassword };
 });
 
 // Partial update — only the fields the admin panel actually exposes for
