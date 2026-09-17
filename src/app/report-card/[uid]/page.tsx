@@ -148,8 +148,6 @@ export default async function ReportCardPage({
 
   const monthSales = saleEntries.filter((e) => e.date.slice(0, 7) === monthKey);
   const perancangan = monthSales.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0);
-  const perancanganWasiat = monthSales.filter((e) => e.category === "perancangan" && e.subCategory !== "hibah").reduce((s, e) => s + (e.amount ?? 0), 0);
-  const perancanganHibah = monthSales.filter((e) => e.category === "perancangan" && e.subCategory === "hibah").reduce((s, e) => s + (e.amount ?? 0), 0);
   const berlianCount = monthSales.filter((e) => e.category === "pengurusan" && e.subCategory === "berlian").reduce((s, e) => s + (e.count ?? 0), 0);
   const mutiaraCount = monthSales.filter((e) => e.category === "pengurusan" && e.subCategory === "mutiara").reduce((s, e) => s + (e.count ?? 0), 0);
   const pusakaBesar = monthSales.filter((e) => e.category === "kesPusaka" && e.subCategory === "besar").reduce((s, e) => s + (e.amount ?? 0), 0);
@@ -278,13 +276,12 @@ export default async function ReportCardPage({
               </tr>
             </thead>
             <tbody>
-              <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan — Wasiat</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{perancanganWasiat.toLocaleString()}</td></tr>
-              <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan — Hibah</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{perancanganHibah.toLocaleString()}</td></tr>
+              <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan (Wasiat + Hibah)</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{perancangan.toLocaleString()}</td></tr>
               <tr><td className="border-b border-border px-2.5 py-2 text-ink">Pengurusan — Al Wasitah (Berlian)</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{berlianCount}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td></tr>
               <tr><td className="border-b border-border px-2.5 py-2 text-ink">Pengurusan — Al Wasitah (Mutiara)</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{mutiaraCount}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td></tr>
               <tr><td className="border-b border-border px-2.5 py-2 text-ink">Kes Pusaka — Besar</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{pusakaBesar.toLocaleString()}</td></tr>
               <tr><td className="border-b border-border px-2.5 py-2 text-ink">Kes Pusaka — Kecil</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{pusakaKecil.toLocaleString()}</td></tr>
-              <tr className="bg-muted font-bold"><td className="px-2.5 py-2 text-ink">Total (Perancangan [Wasiat+Hibah] + Kes Pusaka)</td><td className="px-2.5 py-2 text-right text-ink">—</td><td className="px-2.5 py-2 text-right text-ink">{periodTotal.toLocaleString()}</td></tr>
+              <tr className="bg-muted font-bold"><td className="px-2.5 py-2 text-ink">Total (Perancangan + Kes Pusaka)</td><td className="px-2.5 py-2 text-right text-ink">—</td><td className="px-2.5 py-2 text-right text-ink">{periodTotal.toLocaleString()}</td></tr>
             </tbody>
           </table>
 
@@ -313,8 +310,7 @@ export default async function ReportCardPage({
                 </tr>
               </thead>
               <tbody>
-                <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan — Wasiat</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.perancanganWasiat)}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.perancanganWasiat)}</td></tr>
-                <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan — Hibah</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.perancanganHibah)}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.perancanganHibah)}</td></tr>
+                <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan (Wasiat + Hibah)</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.perancangan)}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.perancangan)}</td></tr>
                 <tr><td className="border-b border-border px-2.5 py-2 text-ink">Wasitah — Berlian</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.personalTotals.pengurusanBerlian}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.groupTotals.pengurusanBerlian}</td></tr>
                 <tr><td className="border-b border-border px-2.5 py-2 text-ink">Wasitah — Mutiara</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.personalTotals.pengurusanMutiara}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.groupTotals.pengurusanMutiara}</td></tr>
                 <tr><td className="border-b border-border px-2.5 py-2 text-ink">Pusaka — Besar</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.kesPusakaBesar)}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.kesPusakaBesar)}</td></tr>
