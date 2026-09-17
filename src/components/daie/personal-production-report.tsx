@@ -65,7 +65,7 @@ export function PersonalProductionReport({ entries, title }: { entries: SaleEntr
             <TableHeader>
               <TableRow>
                 <TableHead>Month</TableHead>
-                <TableHead className="text-right">Perancangan (Wasiat+Hibah)</TableHead>
+                <TableHead className="text-right">Perancangan</TableHead>
                 <TableHead className="text-right">Wasitah (cases)</TableHead>
                 <TableHead className="text-right">Pusaka</TableHead>
               </TableRow>

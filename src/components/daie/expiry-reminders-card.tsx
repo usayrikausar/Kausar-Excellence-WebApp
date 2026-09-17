@@ -7,20 +7,22 @@ import { contractExpiryDate, daysUntilExpiry, isExpiryReminderDue, EXPIRY_REMIND
 import type { CurrentUser } from "@/lib/types";
 
 /**
- * Renewal reminders, 6 and 3 months out — no separate notification store:
+ * Renewal reminder, 6 and 3 months out — no separate notification store:
  * dateExpiry is already on every daie's own doc, so this is computed at
- * render time from data the page already fetched. Shown to everyone in the
- * chain for free, since each level's own downline query already includes
- * everyone below them: a DM sees their own reminder here, their DPM sees the
- * same DM in "downline expiring soon", and so does their KDE.
+ * render time from data the page already fetched.
+ *
+ * Home shows ONLY the viewer's own contract, not a per-person downline
+ * list — for a KDE with hundreds of people, enumerating everyone nearing
+ * expiry here swarmed the dashboard. The full, per-person downline detail
+ * (who's expiring, when) already lives on My Team, highlighted in its
+ * "Date expiry" column — this card just points there with a count so
+ * nothing gets missed without listing every name twice.
  */
 export function ExpiryRemindersCard({ self, downline }: { self: CurrentUser; downline: CurrentUser[] }) {
   const selfDue = isExpiryReminderDue(self);
-  const downlineDue = downline
-    .filter(isExpiryReminderDue)
-    .sort((a, b) => (daysUntilExpiry(a) ?? 0) - (daysUntilExpiry(b) ?? 0));
+  const downlineDueCount = downline.filter(isExpiryReminderDue).length;
 
-  if (!selfDue && downlineDue.length === 0) return null;
+  if (!selfDue && downlineDueCount === 0) return null;
 
   return (
     <Card className="border-accent/40 bg-accent/5">
@@ -38,22 +40,15 @@ export function ExpiryRemindersCard({ self, downline }: { self: CurrentUser; dow
           />
         )}
 
-        {downlineDue.length > 0 && (
-          <div className="space-y-1.5">
-            {selfDue && <p className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Downline expiring soon</p>}
-            {downlineDue.map((member) => (
-              <ReminderRow
-                key={member.uid}
-                label={`${member.name} (${member.daieId})`}
-                days={daysUntilExpiry(member)!}
-                date={contractExpiryDate(member)!}
-              />
-            ))}
-          </div>
+        {downlineDueCount > 0 && (
+          <p className="text-sm text-ink">
+            <span className="font-semibold">{downlineDueCount}</span> team member{downlineDueCount === 1 ? "" : "s"} in your downline
+            {downlineDueCount === 1 ? " has" : " have"} a contract expiring within 6 months.
+          </p>
         )}
 
         <Link href="/team" className="inline-block text-sm font-semibold text-primary hover:underline">
-          View My Team
+          {downlineDueCount > 0 ? "View details on My Team" : "View My Team"}
         </Link>
       </CardContent>
     </Card>

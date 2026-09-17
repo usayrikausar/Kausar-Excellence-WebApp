@@ -129,8 +129,8 @@ export async function getDownline(user: CurrentUser): Promise<CurrentUser[]> {
   return snap.docs.map(toCurrentUser).filter((u) => u.uid !== user.uid);
 }
 
-export async function getSalesTotalsForUid(uid: string): Promise<SalesTotals> {
-  const totals: SalesTotals = {
+function emptySalesTotals(): SalesTotals {
+  return {
     perancangan: 0,
     perancanganWasiat: 0,
     perancanganHibah: 0,
@@ -140,33 +140,66 @@ export async function getSalesTotalsForUid(uid: string): Promise<SalesTotals> {
     kesPusakaKecil: 0,
     collectionTotal: 0,
   };
+}
 
-  const [salesSnap, collectionsSnap] = await Promise.all([
-    adminDb.collection("sales").where("uid", "==", uid).get(),
-    adminDb.collection("collections").where("uid", "==", uid).get(),
+function applySaleToTotals(totals: SalesTotals, sale: SaleDoc): void {
+  if (sale.category === "perancangan") {
+    totals.perancangan += sale.amount ?? 0;
+    if (sale.subCategory === "hibah") totals.perancanganHibah += sale.amount ?? 0;
+    else totals.perancanganWasiat += sale.amount ?? 0; // "wasiat" and legacy/unspecified entries both count as wasiat by default
+  } else if (sale.category === "pengurusan") {
+    if (sale.subCategory === "berlian") totals.pengurusanBerlian += sale.count ?? 0;
+    if (sale.subCategory === "mutiara") totals.pengurusanMutiara += sale.count ?? 0;
+  } else if (sale.category === "kesPusaka") {
+    if (sale.subCategory === "besar") totals.kesPusakaBesar += sale.amount ?? 0;
+    if (sale.subCategory === "kecil") totals.kesPusakaKecil += sale.amount ?? 0;
+  }
+}
+
+/**
+ * Sales + collection totals for MANY daie in one batch — 2 queries per 30
+ * uids (Firestore's "in" cap) instead of 2 queries PER PERSON. My Team and
+ * Reports both used to call the single-uid version once per downline
+ * member, which meant a KDE with hundreds of people triggered hundreds of
+ * sequential-in-spirit query pairs on every page load; this is the same
+ * batched-query shape getSaleEntriesForUids already used, just also
+ * aggregating (not just listing) so the per-member totals table doesn't
+ * need one query pair per row.
+ */
+export async function getSalesTotalsForUids(uids: string[]): Promise<Map<string, SalesTotals>> {
+  const totals = new Map<string, SalesTotals>();
+  if (uids.length === 0) return totals;
+  for (const uid of uids) totals.set(uid, emptySalesTotals());
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < uids.length; i += 30) chunks.push(uids.slice(i, i + 30));
+
+  const [salesSnaps, collectionsSnaps] = await Promise.all([
+    Promise.all(chunks.map((chunk) => adminDb.collection("sales").where("uid", "in", chunk).get())),
+    Promise.all(chunks.map((chunk) => adminDb.collection("collections").where("uid", "in", chunk).get())),
   ]);
 
-  salesSnap.forEach((doc) => {
-    const sale = doc.data() as SaleDoc;
-    if (sale.category === "perancangan") {
-      totals.perancangan += sale.amount ?? 0;
-      if (sale.subCategory === "hibah") totals.perancanganHibah += sale.amount ?? 0;
-      else totals.perancanganWasiat += sale.amount ?? 0; // "wasiat" and legacy/unspecified entries both count as wasiat by default
-    } else if (sale.category === "pengurusan") {
-      if (sale.subCategory === "berlian") totals.pengurusanBerlian += sale.count ?? 0;
-      if (sale.subCategory === "mutiara") totals.pengurusanMutiara += sale.count ?? 0;
-    } else if (sale.category === "kesPusaka") {
-      if (sale.subCategory === "besar") totals.kesPusakaBesar += sale.amount ?? 0;
-      if (sale.subCategory === "kecil") totals.kesPusakaKecil += sale.amount ?? 0;
-    }
-  });
-
-  collectionsSnap.forEach((doc) => {
-    const collection = doc.data() as CollectionDoc;
-    totals.collectionTotal += collection.amountCollected ?? 0;
-  });
+  for (const snap of salesSnaps) {
+    snap.forEach((doc) => {
+      const sale = doc.data() as SaleDoc;
+      const t = totals.get(sale.uid);
+      if (t) applySaleToTotals(t, sale);
+    });
+  }
+  for (const snap of collectionsSnaps) {
+    snap.forEach((doc) => {
+      const collection = doc.data() as CollectionDoc;
+      const t = totals.get(collection.uid);
+      if (t) t.collectionTotal += collection.amountCollected ?? 0;
+    });
+  }
 
   return totals;
+}
+
+export async function getSalesTotalsForUid(uid: string): Promise<SalesTotals> {
+  const totals = await getSalesTotalsForUids([uid]);
+  return totals.get(uid) ?? emptySalesTotals();
 }
 
 function toSaleEntry(doc: QueryDocumentSnapshot<DocumentData>): SaleEntry {
@@ -256,14 +289,15 @@ export interface SalesSummary {
  * rather than being recomputed slightly differently per page.
  */
 export async function getSalesSummary(user: CurrentUser): Promise<SalesSummary> {
-  const [personalTotals, downline] = await Promise.all([getSalesTotalsForUid(user.uid), getDownline(user)]);
+  const downline = await getDownline(user);
+  const totalsByUid = await getSalesTotalsForUids([user.uid, ...downline.map((m) => m.uid)]);
+  const personalTotals = totalsByUid.get(user.uid) ?? emptySalesTotals();
 
   if (downline.length === 0) {
     return { personalTotals, groupTotals: null, groupStatusCounts: null };
   }
 
-  const downlineTotals = await Promise.all(downline.map((m) => getSalesTotalsForUid(m.uid)));
-  const groupTotals = sumTotals([personalTotals, ...downlineTotals]);
+  const groupTotals = sumTotals([personalTotals, ...downline.map((m) => totalsByUid.get(m.uid) ?? emptySalesTotals())]);
   const groupStatusCounts = {
     active: downline.filter(isActiveStatus).length,
     expired: downline.filter((m) => !isActiveStatus(m)).length,
@@ -273,9 +307,9 @@ export async function getSalesSummary(user: CurrentUser): Promise<SalesSummary> 
 
 export async function getTeamWithTotals(user: CurrentUser): Promise<TeamMember[]> {
   const downline = await getDownline(user);
-  const totalsList = await Promise.all(downline.map((member) => getSalesTotalsForUid(member.uid)));
-  return downline.map((member, i) => {
-    const t = totalsList[i];
+  const totalsByUid = await getSalesTotalsForUids(downline.map((m) => m.uid));
+  return downline.map((member) => {
+    const t = totalsByUid.get(member.uid) ?? emptySalesTotals();
     return {
       ...member,
       salesTotal: t.perancangan,
@@ -432,21 +466,42 @@ export async function getUpdatesForProspect(prospectId: string): Promise<Prospec
  * per-prospect get() — see ProspectUpdateDoc in lib/types.ts.
  */
 export async function getPresentStageFirstDatesForUid(uid: string): Promise<string[]> {
-  const snap = await adminDb
-    .collectionGroup("updates")
-    .where("uid", "==", uid)
-    .where("stage", "==", "present")
-    .orderBy("createdAt", "asc")
-    .get();
+  const byUid = await getPresentStageFirstDatesForUids([uid]);
+  return byUid.get(uid) ?? [];
+}
 
-  const firstByProspect = new Map<string, string>();
-  snap.docs.forEach((doc) => {
-    const prospectId = doc.ref.parent.parent!.id;
-    if (firstByProspect.has(prospectId)) return; // ascending order — first occurrence is the earliest
-    const createdAt = doc.data().createdAt as { toDate: () => Date };
-    firstByProspect.set(prospectId, createdAt.toDate().toISOString());
-  });
-  return [...firstByProspect.values()];
+/** Batched version of getPresentStageFirstDatesForUid — one collectionGroup query per 30 uids instead of one per person. */
+export async function getPresentStageFirstDatesForUids(uids: string[]): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>();
+  if (uids.length === 0) return result;
+  for (const uid of uids) result.set(uid, []);
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < uids.length; i += 30) chunks.push(uids.slice(i, i + 30));
+
+  const snaps = await Promise.all(
+    chunks.map((chunk) =>
+      adminDb.collectionGroup("updates").where("uid", "in", chunk).where("stage", "==", "present").orderBy("createdAt", "asc").get(),
+    ),
+  );
+
+  const firstByUidAndProspect = new Map<string, Map<string, string>>();
+  for (const snap of snaps) {
+    snap.docs.forEach((doc) => {
+      const data = doc.data();
+      const uid = data.uid as string;
+      const prospectId = doc.ref.parent.parent!.id;
+      const byProspect = firstByUidAndProspect.get(uid) ?? new Map<string, string>();
+      if (byProspect.has(prospectId)) return; // ascending order — first occurrence is the earliest
+      const createdAt = data.createdAt as { toDate: () => Date };
+      byProspect.set(prospectId, createdAt.toDate().toISOString());
+      firstByUidAndProspect.set(uid, byProspect);
+    });
+  }
+  for (const [uid, byProspect] of firstByUidAndProspect) {
+    result.set(uid, [...byProspect.values()]);
+  }
+  return result;
 }
 
 function toActivityEntry(doc: QueryDocumentSnapshot<DocumentData>): ActivityEntry {
@@ -467,14 +522,58 @@ export async function getActivitiesForUid(uid: string): Promise<ActivityEntry[]>
   return snap.docs.map(toActivityEntry);
 }
 
+/** Batched version of getActivitiesForUid — one query per 30 uids instead of one per person. */
+export async function getActivitiesForUids(uids: string[]): Promise<Map<string, ActivityEntry[]>> {
+  const result = new Map<string, ActivityEntry[]>();
+  if (uids.length === 0) return result;
+  for (const uid of uids) result.set(uid, []);
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < uids.length; i += 30) chunks.push(uids.slice(i, i + 30));
+
+  const snaps = await Promise.all(chunks.map((chunk) => adminDb.collection("activities").where("uid", "in", chunk).get()));
+  for (const snap of snaps) {
+    snap.docs.forEach((doc) => {
+      const entry = toActivityEntry(doc);
+      result.get(entry.uid)?.push(entry);
+    });
+  }
+  return result;
+}
+
 /** Everything computeMonthlyScore needs for one daie, fetched and combined in one call. */
 export async function getMonthlyScoreForUid(uid: string, monthKey: MonthKey): Promise<MonthlyScore> {
-  const [activities, presentDates, saleEntries] = await Promise.all([
-    getActivitiesForUid(uid),
-    getPresentStageFirstDatesForUid(uid),
-    getSaleEntriesForUids([uid]),
+  const byUid = await getMonthlyScoresForUids([uid], monthKey);
+  return byUid.get(uid)!;
+}
+
+/**
+ * Batched version of getMonthlyScoreForUid — used by Reports and the
+ * printable Team Report, both of which need this per member of a downline
+ * that can run into the hundreds. Each of the 3 underlying data sources
+ * (activities, present-stage dates, sale entries) is fetched once per 30
+ * uids instead of once per person, then computeMonthlyScore (a pure
+ * function) runs per uid against the already-fetched slice — no extra
+ * database round-trips beyond the initial batch.
+ */
+export async function getMonthlyScoresForUids(uids: string[], monthKey: MonthKey): Promise<Map<string, MonthlyScore>> {
+  const [activitiesByUid, presentDatesByUid, saleEntries] = await Promise.all([
+    getActivitiesForUids(uids),
+    getPresentStageFirstDatesForUids(uids),
+    getSaleEntriesForUids(uids),
   ]);
-  return computeMonthlyScore(monthKey, activities, presentDates, saleEntries);
+  const salesByUid = new Map<string, SaleEntry[]>();
+  for (const uid of uids) salesByUid.set(uid, []);
+  for (const entry of saleEntries) salesByUid.get(entry.uid)?.push(entry);
+
+  const result = new Map<string, MonthlyScore>();
+  for (const uid of uids) {
+    result.set(
+      uid,
+      computeMonthlyScore(monthKey, activitiesByUid.get(uid) ?? [], presentDatesByUid.get(uid) ?? [], salesByUid.get(uid) ?? []),
+    );
+  }
+  return result;
 }
 
 // --- DM → DPM promotion-quota tracker ---------------------------------------
@@ -564,10 +663,10 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
   if (downline.length === 0) return [];
 
   const uids = downline.map((m) => m.uid);
-  const [saleEntries, collectionEntries, scores] = await Promise.all([
+  const [saleEntries, collectionEntries, scoresByUid] = await Promise.all([
     getSaleEntriesForUids(uids),
     getCollectionEntriesForUids(uids),
-    Promise.all(downline.map((m) => getMonthlyScoreForUid(m.uid, monthKey))),
+    getMonthlyScoresForUids(uids, monthKey),
   ]);
 
   const salesByUid = new Map<string, SaleEntry[]>();
@@ -579,7 +678,7 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
   const collectedByUid = new Map<string, number>();
   for (const c of collectionEntries) collectedByUid.set(c.uid, (collectedByUid.get(c.uid) ?? 0) + c.amountCollected);
 
-  return downline.map((member, i) => {
+  return downline.map((member) => {
     const entries = salesByUid.get(member.uid) ?? [];
     const sales: SalesTotals = {
       perancangan: entries.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0),
@@ -607,7 +706,7 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
       daieId: member.daieId,
       rank: member.rank,
       unitId: member.unitId,
-      score: scores[i],
+      score: scoresByUid.get(member.uid)!,
       sales,
       konvensyen,
       konvensyenQualified: konvensyen.every((c) => c.met),

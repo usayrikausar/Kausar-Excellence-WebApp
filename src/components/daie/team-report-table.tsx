@@ -33,7 +33,7 @@ function konv(row: TeamReportRow, label: string) {
 }
 
 type TrafficSortKey = "status" | "name" | "daieId" | "training" | "reach" | "presentations" | "prosper" | "sales" | "total";
-type SalesSortKey = "name" | "daieId" | "rank" | "perancangan" | "wasiat" | "hibah" | "berlian" | "mutiara" | "besar" | "kecil" | "collection";
+type SalesSortKey = "name" | "daieId" | "rank" | "perancangan" | "berlian" | "mutiara" | "besar" | "kecil" | "collection";
 type KonvensyenSortKey = "name" | "daieId" | "alWasitah" | "hibah" | "pusaka" | "rookieAlWasitah" | "rookiePerancangan" | "qualified";
 
 export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow[]; units: Record<string, string>; showUnit: boolean }) {
@@ -76,8 +76,6 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
         case "daieId": return row.daieId;
         case "rank": return row.rank;
         case "perancangan": return row.sales.perancangan;
-        case "wasiat": return row.sales.perancanganWasiat;
-        case "hibah": return row.sales.perancanganHibah;
         case "berlian": return row.sales.pengurusanBerlian;
         case "mutiara": return row.sales.pengurusanMutiara;
         case "besar": return row.sales.kesPusakaBesar;
@@ -180,9 +178,7 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
                   <th className="px-3 py-2.5"><SortHeaderButton label="Daie ID" sortKey="daieId" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   <th className="px-3 py-2.5"><SortHeaderButton label="Rank" sortKey="rank" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   {showUnit && <th className="px-3 py-2.5">Unit</th>}
-                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Perancangan (Wasiat+Hibah)" sortKey="perancangan" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
-                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="— Wasiat" sortKey="wasiat" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
-                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="— Hibah" sortKey="hibah" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Perancangan" sortKey="perancangan" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Wasitah Berlian" sortKey="berlian" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Wasitah Mutiara" sortKey="mutiara" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Pusaka Besar" sortKey="besar" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
@@ -198,8 +194,6 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
                     <td className="px-3 py-2"><Badge variant="outline">{row.rank}</Badge></td>
                     {showUnit && <td className="px-3 py-2 text-ink">{unitLabel(row.unitId, units)}</td>}
                     <td className="px-3 py-2 text-right text-ink">{formatRM(row.sales.perancangan)}</td>
-                    <td className="px-3 py-2 text-right text-muted-foreground">{formatRM(row.sales.perancanganWasiat)}</td>
-                    <td className="px-3 py-2 text-right text-muted-foreground">{formatRM(row.sales.perancanganHibah)}</td>
                     <td className="px-3 py-2 text-right text-ink">{row.sales.pengurusanBerlian}</td>
                     <td className="px-3 py-2 text-right text-ink">{row.sales.pengurusanMutiara}</td>
                     <td className="px-3 py-2 text-right text-ink">{formatRM(row.sales.kesPusakaBesar)}</td>

@@ -21,7 +21,7 @@ export interface TeamScoreRow {
  * and each row is tinted with its own band's color so the whole team's
  * standing reads at a glance without having to read every number.
  */
-export function TeamTrafficLightTable({ rows }: { rows: TeamScoreRow[] }) {
+export function TeamTrafficLightTable({ rows, monthLabel }: { rows: TeamScoreRow[]; monthLabel?: string }) {
   const sorted = [...rows].sort((a, b) => {
     const orderDiff = TRAFFIC_LIGHT_STYLES[a.score.color].order - TRAFFIC_LIGHT_STYLES[b.score.color].order;
     if (orderDiff !== 0) return orderDiff;
@@ -32,7 +32,7 @@ export function TeamTrafficLightTable({ rows }: { rows: TeamScoreRow[] }) {
     <Card>
       <CardHeader>
         <CardTitle>Team Traffic Light</CardTitle>
-        <CardDescription>This month&rsquo;s behavior score for your downline — training, reach, presentations, PROSPER invites, closed sales.</CardDescription>
+        <CardDescription>{monthLabel ?? "This month"}&rsquo;s behavior score for your downline — training, reach, presentations, PROSPER invites, closed sales.</CardDescription>
       </CardHeader>
       <CardContent className="p-0">
         {sorted.length === 0 ? (
