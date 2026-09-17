@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,77 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // "reset" mode covers both first-time daie (promoted with no password set —
+  // see scripts/promote-roster-production.mjs) and anyone who forgot theirs.
+  // Firebase allows requesting a reset for an email with no password yet;
+  // the link lets them set one for the first time.
+  const [mode, setMode] = useState<"signin" | "reset">("signin");
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  async function handleResetSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setResetLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+    } catch {
+      // Deliberately silent — same generic confirmation whether or not the
+      // email exists, so this can't be used to check who has an account.
+    } finally {
+      setResetLoading(false);
+      setResetSent(true);
+    }
+  }
+
+  if (mode === "reset") {
+    return (
+      <form onSubmit={handleResetSubmit} className="w-full max-w-sm space-y-5">
+        <div className="space-y-1">
+          <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold text-ink">
+            {resetSent ? "Check your email" : "Set or reset your password"}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {resetSent
+              ? "If an account exists for that email, a link to set your password is on its way."
+              : "Enter the email your admin registered for you — first time signing in or forgot your password, same link."}
+          </p>
+        </div>
+
+        {!resetSent && (
+          <div className="space-y-2">
+            <Label htmlFor="reset-email">Email</Label>
+            <Input
+              id="reset-email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@kausargroup.my"
+            />
+          </div>
+        )}
+
+        {!resetSent && (
+          <Button type="submit" className="w-full" size="lg" disabled={resetLoading}>
+            {resetLoading ? "Sending…" : "Send reset link"}
+          </Button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            setMode("signin");
+            setResetSent(false);
+          }}
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          &larr; Back to sign in
+        </button>
+      </form>
+    );
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -69,7 +140,16 @@ export function LoginForm() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">Password</Label>
+          <button
+            type="button"
+            onClick={() => setMode("reset")}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            Forgot password?
+          </button>
+        </div>
         <Input
           id="password"
           type="password"
