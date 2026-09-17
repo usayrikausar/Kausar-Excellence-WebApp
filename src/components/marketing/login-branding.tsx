@@ -24,10 +24,6 @@ export function LoginBranding() {
           One dashboard for the daie network across Kausar Wealth, Global, Aspire, Intisar, and Nusrah —
           wasiat, hibah, and pusaka planning, managed with amanah.
         </p>
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/20 px-3 py-1 text-xs font-semibold text-success">
-          <span className="h-1.5 w-1.5 rounded-full bg-success" />
-          Shariah-compliant by design
-        </span>
       </div>
       <p className="relative z-10 text-xs text-white/60">
         &copy; {new Date().getFullYear()} Kausar Group. Internal use only.
