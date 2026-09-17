@@ -17,7 +17,8 @@
     "source": ".",
     "ignore": ["firebase.json", "**/.git/**", "**/node_modules/**", "**/.next/**"],
     "frameworksBackend": {
-      "memory": "1GiB"
+      "memory": "1GiB",
+      "minInstances": 1
     }
   },
   "emulators": {
