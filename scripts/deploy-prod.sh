@@ -61,11 +61,21 @@ git reset --hard origin/main
 echo "== Installing dependencies (Linux-native) =="
 npm install
 
+if echo "$DEPLOY_TARGETS" | grep -q "functions"; then
+  echo "== Installing functions/ dependencies =="
+  (cd functions && npm install)
+fi
+
 echo "== Deploying [$DEPLOY_TARGETS] to $PROJECT_ID =="
 export FUNCTIONS_DISCOVERY_TIMEOUT=120000
 export GOOGLE_APPLICATION_CREDENTIALS="$KEY_PATH"
 npx firebase experiments:enable webframeworks
 npx firebase deploy --only "$DEPLOY_TARGETS" --project "$PROJECT_ID"
+
+if echo "$DEPLOY_TARGETS" | grep -q "hosting"; then
+  echo "== Re-asserting minInstances (Firebase's own tooling can't set this — see ensure-min-instances.mjs) =="
+  node scripts/ensure-min-instances.mjs "$KEY_PATH"
+fi
 
 echo "== Deploy complete =="
 echo "Live at: https://kausar-excellence-web-app.web.app"
