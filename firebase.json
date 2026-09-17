@@ -15,7 +15,10 @@
   },
   "hosting": {
     "source": ".",
-    "ignore": ["firebase.json", "**/.git/**", "**/node_modules/**", "**/.next/**"]
+    "ignore": ["firebase.json", "**/.git/**", "**/node_modules/**", "**/.next/**"],
+    "frameworksBackend": {
+      "memory": "1GiB"
+    }
   },
   "emulators": {
     "auth": { "port": 9099 },
