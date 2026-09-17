@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PaginationFooter } from "@/components/ui/pagination-footer";
 import { EditUserDialog } from "@/components/admin/edit-user-dialog";
 import { SubscriptionToggle } from "@/components/admin/subscription-toggle";
-import { unitLabel } from "@/lib/constants";
+import { unitLabel, REGION_LABELS } from "@/lib/constants";
 import { isActiveStatus } from "@/lib/utils";
 import type { CurrentUser } from "@/lib/types";
 
@@ -60,14 +60,18 @@ function SortHeaderButton({ label, sortKey, activeSortKey, direction, onSort }: 
   );
 }
 
-export function UserTable({ users, units }: { users: CurrentUser[]; units: Record<string, string> }) {
+export function UserTable({ users, units, allUsers }: { users: CurrentUser[]; units: Record<string, string>; allUsers?: CurrentUser[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("daieId");
   const [direction, setDirection] = useState<"asc" | "desc">("asc");
   const [pageSize, setPageSize] = useState(100);
   const [page, setPage] = useState(1);
 
-  const subtreeCounts = buildSubtreeCounts(users);
-  const nameByUid = new Map(users.map((u) => [u.uid, u.name]));
+  // Subtree active/expired counts must be computed from the FULL roster, not
+  // a filtered subset (e.g. by region) -- a KDE's downline can span more
+  // than one region, so filtering rows must never change what "everyone
+  // below this person" counts as.
+  const subtreeCounts = buildSubtreeCounts(allUsers ?? users);
+  const nameByUid = new Map((allUsers ?? users).map((u) => [u.uid, u.name]));
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -123,6 +127,7 @@ export function UserTable({ users, units }: { users: CurrentUser[]; units: Recor
               <TableHead>Structure</TableHead>
               <TableHead>Upline</TableHead>
               <TableHead><SortHeaderButton label="Status" sortKey="status" activeSortKey={sortKey} direction={direction} onSort={handleSort} /></TableHead>
+              <TableHead>Region</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -158,9 +163,10 @@ export function UserTable({ users, units }: { users: CurrentUser[]; units: Recor
                       </div>
                     )}
                   </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{REGION_LABELS[user.region].split(" (")[0]}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <EditUserDialog user={user} units={units} users={users} />
+                      <EditUserDialog user={user} units={units} users={allUsers ?? users} />
                       <SubscriptionToggle uid={user.uid} status={user.subscriptionStatus} />
                     </div>
                   </TableCell>

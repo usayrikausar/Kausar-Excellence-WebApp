@@ -10,7 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { CurrentUser, Rank, StructureType } from "@/lib/types";
+import type { CurrentUser, Rank, StructureType, Region } from "@/lib/types";
+import { REGIONS } from "@/lib/types";
+import { REGION_LABELS } from "@/lib/constants";
 
 interface CreateUserResult {
   uid: string;
@@ -27,6 +29,7 @@ export function CreateUserForm({ units, users }: { units: Record<string, string>
   const [unitId, setUnitId] = useState(Object.keys(units)[0] ?? "");
   const [uplineId, setUplineId] = useState("");
   const [structureType, setStructureType] = useState<StructureType>("TS");
+  const [region, setRegion] = useState<Region>("central");
   const [isGroupAdmin, setIsGroupAdmin] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +50,7 @@ export function CreateUserForm({ units, users }: { units: Record<string, string>
     setResult(null);
     try {
       const createUser = httpsCallable<
-        { name: string; email: string; rank: Rank; unitId: string; uplineId: string | null; structureType: StructureType; isGroupAdmin: boolean },
+        { name: string; email: string; rank: Rank; unitId: string; uplineId: string | null; structureType: StructureType; region: Region; isGroupAdmin: boolean },
         CreateUserResult
       >(functions, "createUser");
       const response = await createUser({
@@ -57,6 +60,7 @@ export function CreateUserForm({ units, users }: { units: Record<string, string>
         unitId,
         uplineId: rank === "KDE" ? null : uplineId || null,
         structureType,
+        region,
         isGroupAdmin,
       });
       setResult(response.data);
@@ -91,7 +95,7 @@ export function CreateUserForm({ units, users }: { units: Record<string, string>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
             <div className="space-y-2">
               <Label>Rank</Label>
               <Select value={rank} onValueChange={(v) => { setRank(v as Rank); setUplineId(""); }}>
@@ -124,6 +128,17 @@ export function CreateUserForm({ units, users }: { units: Record<string, string>
                   <RadioGroupItem value="OS" id="create-os" /> OS
                 </label>
               </RadioGroup>
+            </div>
+            <div className="space-y-2">
+              <Label>Region</Label>
+              <Select value={region} onValueChange={(v) => setRegion(v as Region)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {REGIONS.map((r) => (
+                    <SelectItem key={r} value={r}>{REGION_LABELS[r]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

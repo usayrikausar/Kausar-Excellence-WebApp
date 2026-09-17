@@ -54,7 +54,9 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       subscriptionStatus: data.subscriptionStatus,
       isGroupAdmin: data.isGroupAdmin === true,
       isLdpMember: data.isLdpMember === true,
+      region: data.region ?? "central",
       dateLicensed: data.dateLicensed ?? null,
+      dateExpiry: data.dateExpiry ?? null,
     } satisfies CurrentUser;
   } catch {
     return null;

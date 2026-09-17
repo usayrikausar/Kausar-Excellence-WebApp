@@ -174,7 +174,7 @@ export default async function ReportCardPage({
   });
 
   const progressByContest = new Map(progress.map((p) => [p.contestId, p.amount]));
-  const expiry = target.dateLicensed ? contractExpiryDate(target.dateLicensed, target.rank) : null;
+  const expiry = contractExpiryDate(target);
   const salesGoalPct = goal?.salesGoal ? Math.min(100, Math.round((periodTotal / goal.salesGoal) * 100)) : 0;
   const collectionPct = periodTotal > 0 ? Math.min(100, Math.round((monthCollection / periodTotal) * 100)) : 0;
 

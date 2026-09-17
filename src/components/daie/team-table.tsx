@@ -7,9 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PaginationFooter } from "@/components/ui/pagination-footer";
-import { unitLabel } from "@/lib/constants";
+import { unitLabel, REGION_LABELS } from "@/lib/constants";
 import type { CurrentUser } from "@/lib/types";
-import { contractExpiryDate, formatDate, formatRM, isActiveStatus } from "@/lib/utils";
+import { contractExpiryDate, daysUntilExpiry, isExpiryReminderDue, formatDate, formatRM, isActiveStatus } from "@/lib/utils";
 
 type TeamMember = CurrentUser & {
   salesTotal: number;
@@ -18,14 +18,16 @@ type TeamMember = CurrentUser & {
   pusakaTotal: number;
 };
 
-type SortKey = "status" | "daieId" | "rank" | "name" | "salesTotal" | "collectionTotal" | "wasitahTotal" | "pusakaTotal" | "dateLicensed" | "expiry";
+type SortKey = "status" | "daieId" | "rank" | "name" | "region" | "salesTotal" | "collectionTotal" | "wasitahTotal" | "pusakaTotal" | "dateLicensed" | "expiry";
 
 function sortValue(member: TeamMember, key: SortKey): string | number {
   switch (key) {
     case "status":
       return isActiveStatus(member) ? 1 : 0;
+    case "region":
+      return REGION_LABELS[member.region];
     case "expiry": {
-      const expiry = member.dateLicensed ? contractExpiryDate(member.dateLicensed, member.rank) : null;
+      const expiry = contractExpiryDate(member);
       return expiry ? expiry.getTime() : 0;
     }
     case "dateLicensed":
@@ -133,6 +135,7 @@ export function TeamTable({
             <TableRow>
               <TableHead>#</TableHead>
               <TableHead><SortHeaderButton label="Status" sortKey="status" activeSortKey={sortKey} direction={direction} onSort={handleSort} /></TableHead>
+              <TableHead><SortHeaderButton label="Region" sortKey="region" activeSortKey={sortKey} direction={direction} onSort={handleSort} /></TableHead>
               <TableHead><SortHeaderButton label="Daie ID" sortKey="daieId" activeSortKey={sortKey} direction={direction} onSort={handleSort} /></TableHead>
               <TableHead><SortHeaderButton label="Rank" sortKey="rank" activeSortKey={sortKey} direction={direction} onSort={handleSort} /></TableHead>
               <TableHead><SortHeaderButton label="Name" sortKey="name" activeSortKey={sortKey} direction={direction} onSort={handleSort} /></TableHead>
@@ -150,13 +153,16 @@ export function TeamTable({
           <TableBody>
             {pageRows.map((member, i) => {
               const isActive = isActiveStatus(member);
-              const expiry = member.dateLicensed ? contractExpiryDate(member.dateLicensed, member.rank) : null;
+              const expiry = contractExpiryDate(member);
+              const expiryDays = daysUntilExpiry(member);
+              const reminderDue = isExpiryReminderDue(member);
               return (
                 <TableRow key={member.uid}>
                   <TableCell className="text-xs text-muted-foreground">{(clampedPage - 1) * pageSize + i + 1}</TableCell>
                   <TableCell>
                     <Badge variant={isActive ? "success" : "destructive"}>{isActive ? "Active" : "Non-Active (Expired)"}</Badge>
                   </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{REGION_LABELS[member.region].split(" (")[0]}</TableCell>
                   <TableCell className="font-mono text-xs">{member.daieId}</TableCell>
                   <TableCell><Badge variant="outline">{member.rank}</Badge></TableCell>
                   <TableCell className="font-medium">{member.name}</TableCell>
@@ -167,7 +173,14 @@ export function TeamTable({
                   <TableCell className="text-right">{member.wasitahTotal} case(s)</TableCell>
                   <TableCell className="text-right">{formatRM(member.pusakaTotal)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{member.dateLicensed ? formatDate(member.dateLicensed) : "—"}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{expiry ? formatDate(expiry) : "—"}</TableCell>
+                  <TableCell className="text-xs">
+                    {expiry ? (
+                      <span className={reminderDue ? "font-semibold text-red-700" : "text-muted-foreground"}>
+                        {formatDate(expiry)}
+                        {reminderDue && ` (${expiryDays}d)`}
+                      </span>
+                    ) : "—"}
+                  </TableCell>
                   <TableCell>
                     <Link href={`/report-card/${member.uid}`} target="_blank" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
                       <FileText className="h-3.5 w-3.5" /> Print

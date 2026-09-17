@@ -1,4 +1,4 @@
-import type { UnitId, PipppasStage, ProspectSource, ProfessionType, GovernmentTahap, IncomeBracket } from "./types";
+import type { UnitId, PipppasStage, ProspectSource, ProfessionType, GovernmentTahap, IncomeBracket, Region } from "./types";
 
 export const UNIT_LABELS: Record<UnitId, string> = {
   "kausar-wealth": "Kausar Wealth",
@@ -19,6 +19,15 @@ export const RANK_LABELS = {
   DPM: "Daie Profesional Mawarith",
   DM: "Daie Mawarith",
 } as const;
+
+/** Wasiyyah Konvensyen's 5 award regions, keyed by state per REGIONS in lib/types.ts. */
+export const REGION_LABELS: Record<Region, string> = {
+  "east-coast": "East Coast (Kelantan, Terengganu, Pahang)",
+  central: "Central (KL, Selangor)",
+  northern: "Northern (Kedah, Perak, Pulau Pinang, Perlis)",
+  southern: "Southern (Johor, Melaka)",
+  borneo: "Borneo (Sabah & Sarawak)",
+};
 
 /** PIPPPAS stage labels, in pipeline order — see PIPPPAS_STAGES in lib/types.ts. */
 export const STAGE_LABELS: Record<PipppasStage, string> = {

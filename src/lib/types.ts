@@ -2,6 +2,10 @@ export type Rank = "KDE" | "DPM" | "DM";
 export type StructureType = "TS" | "OS";
 export type SubscriptionStatus = "active" | "inactive";
 
+/** Wasiyyah Konvensyen's 5 award regions, based on registration address. */
+export const REGIONS = ["east-coast", "central", "northern", "southern", "borneo"] as const;
+export type Region = (typeof REGIONS)[number];
+
 export const UNIT_IDS = [
   "kausar-wealth",
   "kausar-global",
@@ -28,15 +32,26 @@ export interface UserDoc {
   isGroupAdmin: boolean;
   /** Kausar Leadership Programme member — grants access to the LDP and Leaders Tool tabs (KDEs get this access regardless of the flag). */
   isLdpMember: boolean;
+  /** Wasiyyah Konvensyen award region, based on registration address. Defaults to "central" when unmarked in the source roster rather than guessed from a free-text address. */
+  region: Region;
   /**
    * ISO date (YYYY-MM-DD) the daie's Wasiyyah contract was licensed — entered
    * manually by their introducer/upline once the daie completes onboarding
-   * (My Onboarding). null until then. The Wasiyyah contract auto-expires 24
-   * months after this date (36 months for KDE, a longer renewal term);
-   * expiry is computed from it (see lib/utils.ts's contractExpiryDate), not
-   * stored separately, so it can never drift.
+   * (My Onboarding). null until then. Historical/informational only —
+   * expiry itself comes from dateExpiry below, not computed from this.
    */
   dateLicensed: string | null;
+  /**
+   * ISO date (YYYY-MM-DD) the daie's Wasiyyah contract actually expires —
+   * the real, renewal-aware end date (Wasiyyah's "Tempoh Tamat"), entered/
+   * updated by an admin whenever a daie renews. null means never set (an
+   * older/incomplete record) — isActiveStatus treats that as not-yet-expired
+   * rather than expired, same as it always did for a missing dateLicensed.
+   * Deliberately NOT computed from dateLicensed + a fixed term: that formula
+   * only holds for someone's very first term and goes stale the moment they
+   * renew, since dateLicensed keeps the ORIGINAL start date forever.
+   */
+  dateExpiry: string | null;
   createdAt?: unknown;
 }
 

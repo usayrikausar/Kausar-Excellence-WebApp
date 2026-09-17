@@ -10,7 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
-import type { CurrentUser, Rank, StructureType } from "@/lib/types";
+import type { CurrentUser, Rank, StructureType, Region } from "@/lib/types";
+import { REGION_LABELS } from "@/lib/constants";
+import { REGIONS } from "@/lib/types";
 
 export function EditUserDialog({ user, units, users }: { user: CurrentUser; units: Record<string, string>; users: CurrentUser[] }) {
   const router = useRouter();
@@ -21,7 +23,9 @@ export function EditUserDialog({ user, units, users }: { user: CurrentUser; unit
   const [structureType, setStructureType] = useState<StructureType>(user.structureType);
   const [isGroupAdmin, setIsGroupAdmin] = useState(user.isGroupAdmin);
   const [isLdpMember, setIsLdpMember] = useState(user.isLdpMember);
+  const [region, setRegion] = useState<Region>(user.region);
   const [dateLicensed, setDateLicensed] = useState(user.dateLicensed ?? "");
+  const [dateExpiry, setDateExpiry] = useState(user.dateExpiry ?? "");
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +52,9 @@ export function EditUserDialog({ user, units, users }: { user: CurrentUser; unit
         structureType,
         isGroupAdmin,
         isLdpMember,
+        region,
         dateLicensed: dateLicensed || null,
+        dateExpiry: dateExpiry || null,
       });
       setOpen(false);
       router.refresh();
@@ -111,16 +117,29 @@ export function EditUserDialog({ user, units, users }: { user: CurrentUser; unit
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label>Structure</Label>
-            <RadioGroup value={structureType} onValueChange={(v) => setStructureType(v as StructureType)} className="flex gap-6">
-              <label className="flex items-center gap-1.5 text-sm">
-                <RadioGroupItem value="TS" id={`edit-ts-${user.uid}`} /> TS
-              </label>
-              <label className="flex items-center gap-1.5 text-sm">
-                <RadioGroupItem value="OS" id={`edit-os-${user.uid}`} /> OS
-              </label>
-            </RadioGroup>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Structure</Label>
+              <RadioGroup value={structureType} onValueChange={(v) => setStructureType(v as StructureType)} className="flex gap-6 pt-2">
+                <label className="flex items-center gap-1.5 text-sm">
+                  <RadioGroupItem value="TS" id={`edit-ts-${user.uid}`} /> TS
+                </label>
+                <label className="flex items-center gap-1.5 text-sm">
+                  <RadioGroupItem value="OS" id={`edit-os-${user.uid}`} /> OS
+                </label>
+              </RadioGroup>
+            </div>
+            <div className="space-y-2">
+              <Label>Region <span className="font-normal text-muted-foreground">(Konvensyen award)</span></Label>
+              <Select value={region} onValueChange={(v) => setRegion(v as Region)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {REGIONS.map((r) => (
+                    <SelectItem key={r} value={r}>{REGION_LABELS[r]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -133,9 +152,20 @@ export function EditUserDialog({ user, units, users }: { user: CurrentUser; unit
               value={dateLicensed}
               onChange={(e) => setDateLicensed(e.target.value)}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor={`edit-date-expiry-${user.uid}`}>
+              Date expiry <span className="font-normal text-muted-foreground">(update whenever the contract renews)</span>
+            </Label>
+            <Input
+              id={`edit-date-expiry-${user.uid}`}
+              type="date"
+              value={dateExpiry}
+              onChange={(e) => setDateExpiry(e.target.value)}
+            />
             <p className="text-xs text-muted-foreground">
-              The Wasiyyah contract auto-expires {rank === "KDE" ? "36 months (KDE renewal term)" : "24 months"} after this
-              date — shown as &ldquo;Date expiry&rdquo; on My Team.
+              The real Wasiyyah contract end date — drives &ldquo;Active/Expired&rdquo; status and the expiry reminders on My Team.
             </p>
           </div>
 

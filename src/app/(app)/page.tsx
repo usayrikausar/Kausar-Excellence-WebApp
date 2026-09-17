@@ -14,6 +14,7 @@ import { HeroCarousel } from "@/components/daie/hero-carousel";
 import { KpiTile } from "@/components/daie/kpi-tile";
 import { BulletinCard } from "@/components/daie/bulletin-card";
 import { ProgressBar } from "@/components/daie/progress-bar";
+import { ExpiryRemindersCard } from "@/components/daie/expiry-reminders-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatRM, isActiveStatus } from "@/lib/utils";
 
@@ -52,6 +53,8 @@ export default async function HomePage() {
   return (
     <div className="space-y-6">
       <HeroCarousel />
+
+      <ExpiryRemindersCard self={user} downline={downline} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiTile label="My sales total" value={formatRM(personalSalesTotal)} icon={BadgeDollarSign} accent="primary" />

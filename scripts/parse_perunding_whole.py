@@ -1,8 +1,17 @@
 # Parses the authoritative "Perunding Whole.xlsx" export from Wasiyyah into
 # scripts/roster_import_v2.json, in the same record shape import-roster.mjs
 # already expects (rosterId/daieId/name/rank/unitId/uplineRosterId/
-# lineagePath/status/isLdpMember/flags/sourceRow), plus two new fields this
-# source makes possible: email and dateLicensed (from Tempoh Mula).
+# lineagePath/status/isLdpMember/flags/sourceRow), plus fields this source
+# makes possible: email and dateLicensed (from Tempoh Mula), dateExpiry
+# (from Tempoh Tamat), and region.
+#
+# status is now driven by the sheet's own Tempoh Tamat (real contract end
+# date, updated on renewal) rather than a fixed 24/36-month formula from
+# Tempoh Mula — a spot check found the formula disagreed with Tempoh Tamat
+# for 71% of records with both dates, since Tempoh Mula stays at the
+# ORIGINAL start date across renewals while Tempoh Tamat tracks the actual
+# current end date. The formula is kept only as a fallback for the handful
+# of records missing Tempoh Tamat.
 #
 # Deliberately does NOT read IC, Tarikh Lahir, No Tel(2), Bank, No Account —
 # data minimization: only what the app's schema actually uses.
@@ -57,6 +66,21 @@ UNIT_OVERRIDES = {
 # Yusliyana's actual introducer/sponsor even though she became Kausar
 # Intisar's KDE. Flagged distinctly so it doesn't read as still-open.
 CONFIRMED_CROSS_UNIT_UPLINES = {"11353"}
+
+# Wasiyyah Konvensyen's 5 award regions, keyed by the sheet's own Region
+# column values (normalized upper-case) -> canonical region id. "Easthern"
+# is a typo in the source for "Eastern"/East Coast. A record with no Region
+# value at all, or an ambiguous multi-region value like "Southern / Central",
+# defaults to "central" per usayri.kausar@gmail.com (2026-09-17) rather than
+# guessing from the free-text address.
+REGION_BY_SHEET_VALUE = {
+    "CENTRAL": "central",
+    "EASTERN": "east-coast",
+    "EASTHERN": "east-coast",
+    "NORTHERN": "northern",
+    "SOUTHERN": "southern",
+    "BORNEO": "borneo",
+}
 
 
 def main():
@@ -128,6 +152,14 @@ def main():
 
         mula = row[idx["Tempoh Mula"]]
         date_licensed = mula.date().isoformat() if isinstance(mula, datetime) else None
+        tamat = row[idx["Tempoh Tamat"]]
+        date_expiry = tamat.date().isoformat() if isinstance(tamat, datetime) else None
+
+        region_raw = row[idx["Region"]]
+        region_key = str(region_raw).strip().upper() if region_raw else None
+        region = REGION_BY_SHEET_VALUE.get(region_key, "central")
+        if region_raw and region_key not in REGION_BY_SHEET_VALUE:
+            flags.append(f"unrecognized_region:{region_raw}")
 
         email = row[idx["Emel"]]
         email = str(email).strip() if email else None
@@ -141,7 +173,9 @@ def main():
             "email": email,
             "rank": rank,
             "unitId": unit_id,
+            "region": region,
             "dateLicensed": date_licensed,
+            "dateExpiry": date_expiry,
             "isLdpMember": old_ldp_by_daie_id.get(daie_id, False),
             "flags": flags,
             "sourceRow": sourceRow,
@@ -182,7 +216,9 @@ def main():
             "email": None,
             "rank": "KDE",
             "unitId": unit_id,
+            "region": "central",
             "dateLicensed": None,
+            "dateExpiry": None,
             "isLdpMember": old_ldp_by_daie_id.get(up_kod, False),
             "flags": ["synthetic_root"],
             "sourceRow": None,
@@ -238,10 +274,12 @@ def main():
     for rec in records:
         rec["lineagePath"] = lineage_of(rec)
 
-    # Pass 4: status, computed from dateLicensed + rank using the same
-    # 24/36-month rule as lib/utils.ts's contractExpiryDate (kept in sync by
-    # hand — see that file for the source of truth). No date -> active
-    # (mirrors isActiveStatus treating a null dateLicensed as not-yet-expired).
+    # Pass 4: status, from dateExpiry (Tempoh Tamat) directly where the sheet
+    # has it — that's the real, renewal-aware contract end date. Falls back
+    # to the old dateLicensed + rank 24/36-month formula only when dateExpiry
+    # is missing (mirrors lib/utils.ts's contractExpiryDate, kept in sync by
+    # hand). No date at all -> active (mirrors isActiveStatus treating a null
+    # dateLicensed as not-yet-expired).
     def add_months(d, months):
         month = d.month - 1 + months
         year = d.year + month // 12
@@ -253,14 +291,21 @@ def main():
     today = datetime.now().date()
     active_count = 0
     expired_count = 0
+    from_expiry_field = 0
+    from_formula = 0
     for rec in records:
-        if rec["dateLicensed"] is None:
+        if rec["dateExpiry"] is not None:
+            expiry = datetime.fromisoformat(rec["dateExpiry"]).date()
+            rec["status"] = "active" if expiry >= today else "expired"
+            from_expiry_field += 1
+        elif rec["dateLicensed"] is None:
             rec["status"] = "active"
         else:
             months = 36 if rec["rank"] == "KDE" else 24
             start = datetime.fromisoformat(rec["dateLicensed"]).date()
             expiry = add_months(start, months)
             rec["status"] = "active" if expiry >= today else "expired"
+            from_formula += 1
         if rec["status"] == "active":
             active_count += 1
         else:
@@ -279,8 +324,13 @@ def main():
     cross_confirmed = sum(1 for r in records if "cross_unit_upline_confirmed" in r["flags"])
     corrected = sum(1 for r in records if "unit_corrected_by_pic" in r["flags"])
 
+    region_counts = Counter(r["region"] for r in records)
+    unrecognized_region = sum(1 for r in records if any(f.startswith("unrecognized_region:") for f in r["flags"]))
+
     print(f"Wrote {out_path}: {len(records)} records")
     print(f"  active={active_count} expired={expired_count}")
+    print(f"  status source: dateExpiry field={from_expiry_field} formula-fallback={from_formula}")
+    print(f"  region: {dict(region_counts)} (unrecognized value defaulted to central: {unrecognized_region})")
     print(f"  flagged: duplicate_id={dupes} missing_id={missing_id} missing_email={missing_email} "
           f"unresolved_upline={unresolved}")
     print(f"  cross_unit_upline: unresolved={cross} structural(unit-KDE->parent company)={cross_structural} "

@@ -1,9 +1,7 @@
 import { requireGroupAdmin } from "@/lib/auth/session";
 import { getAllUsers, getUnits } from "@/lib/data";
 import { CreateUserForm } from "@/components/admin/create-user-form";
-import { UserTable } from "@/components/admin/user-table";
-import { ExportUsersCsvButton } from "@/components/admin/export-users-csv-button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DaieDirectoryCard } from "@/components/admin/daie-directory-card";
 
 export default async function AdminPage() {
   await requireGroupAdmin();
@@ -18,15 +16,7 @@ export default async function AdminPage() {
 
       <CreateUserForm units={units} users={users} />
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle>All daie ({users.length})</CardTitle>
-          <ExportUsersCsvButton users={users} units={units} />
-        </CardHeader>
-        <CardContent className="p-0">
-          <UserTable users={users} units={units} />
-        </CardContent>
-      </Card>
+      <DaieDirectoryCard users={users} units={units} />
     </div>
   );
 }

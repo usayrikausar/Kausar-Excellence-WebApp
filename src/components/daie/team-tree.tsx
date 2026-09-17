@@ -90,7 +90,7 @@ export function TeamTree({
     ];
     const rows = team.map((member) => {
       const isActive = isActiveStatus(member);
-      const expiry = member.dateLicensed ? contractExpiryDate(member.dateLicensed, member.rank) : null;
+      const expiry = contractExpiryDate(member);
       return [
         isActive ? "Active" : "Non-Active (Expired)",
         member.daieId,
@@ -152,7 +152,7 @@ export function TeamTree({
       const children = childrenByParent.get(member.uid) ?? [];
       const hasChildren = children.length > 0;
       const isOpen = expanded.has(member.uid);
-      const expiry = member.dateLicensed ? contractExpiryDate(member.dateLicensed, member.rank) : null;
+      const expiry = contractExpiryDate(member);
       const counts = subtreeCounts.get(member.uid);
 
       // Expanded parent rows get a strong yellow tint (so it's obvious which

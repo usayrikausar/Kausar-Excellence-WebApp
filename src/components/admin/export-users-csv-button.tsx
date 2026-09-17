@@ -2,7 +2,7 @@
 
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { unitLabel } from "@/lib/constants";
+import { unitLabel, REGION_LABELS } from "@/lib/constants";
 import { contractExpiryDate, formatDate, isActiveStatus } from "@/lib/utils";
 import { downloadCsv } from "@/lib/csv";
 import type { CurrentUser } from "@/lib/types";
@@ -19,13 +19,14 @@ export function ExportUsersCsvButton({ users, units }: { users: CurrentUser[]; u
       "Rank",
       "Unit",
       "Structure",
+      "Region",
       "Upline",
       "Date Licensed",
       "Date Expiry",
     ];
     const rows = users.map((user) => {
       const active = isActiveStatus(user);
-      const expiry = user.dateLicensed ? contractExpiryDate(user.dateLicensed, user.rank) : null;
+      const expiry = contractExpiryDate(user);
       return [
         active ? "Active" : "Non-Active (Expired)",
         user.daieId,
@@ -34,6 +35,7 @@ export function ExportUsersCsvButton({ users, units }: { users: CurrentUser[]; u
         user.rank,
         unitLabel(user.unitId, units),
         user.structureType,
+        REGION_LABELS[user.region],
         user.uplineId ? (nameByUid.get(user.uplineId) ?? "—") : "—",
         user.dateLicensed ? formatDate(user.dateLicensed) : "",
         expiry ? formatDate(expiry) : "",

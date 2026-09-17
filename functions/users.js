@@ -14,6 +14,7 @@ import { nextDaieId } from './daieId.js';
 
 const RANKS = ['KDE', 'DPM', 'DM'];
 const STRUCTURE_TYPES = ['TS', 'OS'];
+const REGIONS = ['east-coast', 'central', 'northern', 'southern', 'borneo'];
 
 // A fresh random password per account (shown once to the admin, who relays
 // it to the new daie) — never a shared/guessable default, since this runs
@@ -35,7 +36,7 @@ async function requireGroupAdmin(request) {
 
 export const createUser = onCall(async (request) => {
   await requireGroupAdmin(request);
-  const { name, email, rank, unitId, uplineId, structureType, isGroupAdmin } = request.data ?? {};
+  const { name, email, rank, unitId, uplineId, structureType, isGroupAdmin, region } = request.data ?? {};
 
   if (!name || typeof name !== 'string') throw new HttpsError('invalid-argument', 'Name is required.');
   if (!email || typeof email !== 'string') throw new HttpsError('invalid-argument', 'Email is required.');
@@ -43,6 +44,9 @@ export const createUser = onCall(async (request) => {
   if (!unitId || typeof unitId !== 'string') throw new HttpsError('invalid-argument', 'unitId is required.');
   if (!STRUCTURE_TYPES.includes(structureType)) {
     throw new HttpsError('invalid-argument', 'structureType must be TS or OS.');
+  }
+  if (region !== undefined && !REGIONS.includes(region)) {
+    throw new HttpsError('invalid-argument', 'region must be one of east-coast, central, northern, southern, borneo.');
   }
   if (rank !== 'KDE' && !uplineId) {
     throw new HttpsError('invalid-argument', 'DPM and DM must have an uplineId.');
@@ -64,6 +68,7 @@ export const createUser = onCall(async (request) => {
     email,
     rank,
     unitId,
+    region: region ?? 'central',
     uplineId: rank === 'KDE' ? null : uplineId,
     lineagePath: [], // filled in by recomputeLineageOnWrite, triggered by this very create
     structureType,
@@ -71,6 +76,7 @@ export const createUser = onCall(async (request) => {
     isGroupAdmin: isGroupAdmin === true,
     isLdpMember: false,
     dateLicensed: null, // set later by the introducer once onboarding (My Onboarding) is complete
+    dateExpiry: null,
     createdAt: FieldValue.serverTimestamp(),
   });
 
@@ -85,7 +91,7 @@ const DATE_LICENSED_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const updateUser = onCall(async (request) => {
   await requireGroupAdmin(request);
-  const { uid, rank, unitId, uplineId, structureType, subscriptionStatus, isGroupAdmin, isLdpMember, dateLicensed } =
+  const { uid, rank, unitId, uplineId, structureType, subscriptionStatus, isGroupAdmin, isLdpMember, region, dateLicensed, dateExpiry } =
     request.data ?? {};
   if (!uid || typeof uid !== 'string') throw new HttpsError('invalid-argument', 'uid is required.');
 
@@ -108,6 +114,12 @@ export const updateUser = onCall(async (request) => {
   }
   if (isGroupAdmin !== undefined) patch.isGroupAdmin = isGroupAdmin === true;
   if (isLdpMember !== undefined) patch.isLdpMember = isLdpMember === true;
+  if (region !== undefined) {
+    if (!REGIONS.includes(region)) {
+      throw new HttpsError('invalid-argument', 'region must be one of east-coast, central, northern, southern, borneo.');
+    }
+    patch.region = region;
+  }
   if (dateLicensed !== undefined) {
     // Set once the daie completes onboarding (My Onboarding) — entered by
     // their introducer/upline, not the daie themselves. null clears it
@@ -117,6 +129,16 @@ export const updateUser = onCall(async (request) => {
       throw new HttpsError('invalid-argument', 'dateLicensed must be a YYYY-MM-DD date or null.');
     }
     patch.dateLicensed = dateLicensed;
+  }
+  if (dateExpiry !== undefined) {
+    // The daie's real contract end date (Wasiyyah's "Tempoh Tamat") — update
+    // this whenever a daie renews. null clears it (falls back to the
+    // formula-based estimate from dateLicensed, if any — see
+    // lib/utils.ts's contractExpiryDate).
+    if (dateExpiry !== null && !DATE_LICENSED_RE.test(dateExpiry)) {
+      throw new HttpsError('invalid-argument', 'dateExpiry must be a YYYY-MM-DD date or null.');
+    }
+    patch.dateExpiry = dateExpiry;
   }
   if (subscriptionStatus !== undefined) {
     if (!['active', 'inactive'].includes(subscriptionStatus)) {
