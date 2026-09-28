@@ -26,7 +26,8 @@ if (serviceAccount.project_id !== "kausar-excellence-web-app") {
   process.exit(1);
 }
 
-const FUNCTION_NAME = `projects/${serviceAccount.project_id}/locations/us-central1/functions/ssrkausarexcellenceweba`;
+// Must match hosting.frameworksBackend.region in firebase.json.
+const FUNCTION_NAME = `projects/${serviceAccount.project_id}/locations/asia-southeast1/functions/ssrkausarexcellenceweba`;
 const TARGET_MIN_INSTANCES = 1;
 
 const auth = new GoogleAuth({ credentials: serviceAccount, scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
