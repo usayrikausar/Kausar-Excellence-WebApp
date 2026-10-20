@@ -87,7 +87,7 @@ export default async function ActivitiesPage({
               </div>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             {report === "individual" && hasTeam && (
               <DaiePicker basePath="/activities" selfUid={user.uid} selectedUid={viewed.uid} options={pickerOptions} />
             )}

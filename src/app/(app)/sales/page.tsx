@@ -70,7 +70,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
               {downline.length > 0 ? "Track your own sales or pick anyone in your team." : "Your sales for the month you choose."}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             {downline.length > 0 && (
               <DaiePicker basePath="/sales" selfUid={user.uid} selectedUid={viewed.uid} options={pickerOptions} />
             )}

@@ -18,7 +18,7 @@ export function Sidebar({ user, onboardingComplete }: { user: CurrentUser; onboa
   });
 
   return (
-    <aside className="sticky top-0 flex h-screen w-64 shrink-0 flex-col bg-sidebar-background text-sidebar-foreground">
+    <aside className="flex h-dvh w-64 shrink-0 flex-col bg-sidebar-background text-sidebar-foreground lg:h-screen">
       <div className="flex h-16 items-center gap-2 border-b border-white/10 px-6">
         <Image
           src="/kausar-logo.png"

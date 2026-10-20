@@ -58,7 +58,7 @@ export function DaiePicker({
   }
 
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+    <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
       <Input
         id="daie-picker-filter"
         value={filter}
@@ -71,7 +71,7 @@ export function DaiePicker({
         id="daie-picker"
         value={selectedUid}
         onChange={(e) => go(e.target.value)}
-        className="h-9 min-w-0 rounded-md border border-border bg-white px-2 text-sm text-ink sm:w-80"
+        className="h-9 w-full min-w-0 rounded-md border border-border bg-white px-2 text-sm text-ink sm:w-80"
         aria-label="Choose daie"
       >
         {filtered.shown.map((o) => (
