@@ -13,6 +13,9 @@ function daysInStage(prospect: ProspectWithId): number {
   return Math.max(0, Math.floor((Date.now() - since) / 86_400_000));
 }
 
+/** Cards shown per stage before "Show more" — keeps a busy stage from turning the board into one endless column. */
+const STAGE_PAGE = 10;
+
 export function PipelineBoard({ prospects }: { prospects: ProspectWithId[] }) {
   // Holds just the id, not a snapshot of the prospect object — a snapshot
   // would go stale the moment something inside the open dialog saves and
@@ -24,6 +27,7 @@ export function PipelineBoard({ prospects }: { prospects: ProspectWithId[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = selectedId ? (prospects.find((p) => p.id === selectedId) ?? null) : null;
   const active = useMemo(() => prospects.filter((p) => p.status === "active"), [prospects]);
+  const [shownByStage, setShownByStage] = useState<Record<string, number>>({});
 
   const byStage = useMemo(() => {
     const map = new Map<string, ProspectWithId[]>();
@@ -37,6 +41,7 @@ export function PipelineBoard({ prospects }: { prospects: ProspectWithId[] }) {
       <div className="flex gap-4 overflow-x-auto pb-2">
         {PIPPPAS_STAGES.map((stage) => {
           const items = byStage.get(stage) ?? [];
+          const shown = shownByStage[stage] ?? STAGE_PAGE;
           return (
             <div key={stage} className="w-64 shrink-0">
               <div className="mb-2 flex items-center justify-between px-1">
@@ -45,7 +50,7 @@ export function PipelineBoard({ prospects }: { prospects: ProspectWithId[] }) {
               </div>
               <div className="space-y-2">
                 {items.length === 0 && <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">Empty</p>}
-                {items.map((p) => (
+                {items.slice(0, shown).map((p) => (
                   <button
                     key={p.id}
                     type="button"
@@ -60,6 +65,15 @@ export function PipelineBoard({ prospects }: { prospects: ProspectWithId[] }) {
                     )}
                   </button>
                 ))}
+                {items.length > shown && (
+                  <button
+                    type="button"
+                    onClick={() => setShownByStage((prev) => ({ ...prev, [stage]: shown + STAGE_PAGE }))}
+                    className="w-full rounded-lg border border-dashed border-border p-2 text-center text-xs font-semibold text-primary hover:bg-muted"
+                  >
+                    Show {Math.min(STAGE_PAGE, items.length - shown)} more ({items.length - shown} hidden)
+                  </button>
+                )}
               </div>
             </div>
           );

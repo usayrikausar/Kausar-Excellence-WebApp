@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PaginationFooter } from "@/components/ui/pagination-footer";
+import { usePagination } from "@/components/ui/use-pagination";
 import { useRouter } from "next/navigation";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
@@ -36,6 +38,8 @@ export function TrainingAttendancePanel({
 
   const usersByUid = useMemo(() => new Map(allUsers.map((u) => [u.uid, u])), [allUsers]);
   const attendedUids = useMemo(() => new Set(attendance.map((a) => a.uid)), [attendance]);
+  const sortedAttendance = useMemo(() => attendance.slice().sort((a, b) => a.markedAt.localeCompare(b.markedAt)), [attendance]);
+  const { page, setPage, totalPages, pageItems: pageAttendance } = usePagination(sortedAttendance, 20);
 
   const searchResults = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -98,10 +102,7 @@ export function TrainingAttendancePanel({
 
         <div className="mt-2 space-y-1.5">
           {attendance.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No one has checked in yet.</p>}
-          {attendance
-            .slice()
-            .sort((a, b) => a.markedAt.localeCompare(b.markedAt))
-            .map((a) => {
+          {pageAttendance.map((a) => {
               const u = usersByUid.get(a.uid);
               return (
                 <div key={a.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
@@ -114,6 +115,7 @@ export function TrainingAttendancePanel({
               );
             })}
         </div>
+        {totalPages > 1 && <PaginationFooter page={page} totalPages={totalPages} onPageChange={setPage} />}
       </DialogContent>
     </Dialog>
   );

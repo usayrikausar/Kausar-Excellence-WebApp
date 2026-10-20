@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PaginationFooter } from "@/components/ui/pagination-footer";
+import { usePagination } from "@/components/ui/use-pagination";
 import { ChevronRight, ChevronDown, Download } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -111,6 +113,9 @@ export function TeamTree({
   }
 
   const roots = childrenByParent.get(rootUid) ?? [];
+  // Paged by top-level branch (25 per page) — a KDE or Group Admin can have
+  // hundreds of direct roots; expanding a branch still shows its whole subtree.
+  const { page, setPage, totalPages, pageItems: pageRoots } = usePagination(roots, 25);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
   // Whole-subtree active/expired counts (every descendant, not just direct
@@ -244,9 +249,10 @@ export function TeamTree({
               <TableHead>Date expiry</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>{renderRows(roots, 0)}</TableBody>
+          <TableBody>{renderRows(pageRoots, 0)}</TableBody>
         </Table>
       </div>
+      {totalPages > 1 && <PaginationFooter page={page} totalPages={totalPages} onPageChange={setPage} />}
     </div>
   );
 }

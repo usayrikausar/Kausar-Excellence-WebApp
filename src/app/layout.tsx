@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
+import { UpdateBanner } from "@/components/update-banner";
 import "./globals.css";
 
 // Single typeface across the whole app — Elza (the brand's display font) is
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ServiceWorkerRegistration />
+        <UpdateBanner />
         {children}
       </body>
     </html>

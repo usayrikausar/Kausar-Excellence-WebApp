@@ -127,3 +127,41 @@ export function computeMonthlyScore(
     color: colorFor(total),
   };
 }
+
+export interface CriterionStatus {
+  key: "training" | "reach" | "presentations" | "prosperInvites" | "sales";
+  label: string;
+  done: number;
+  target: number;
+  met: boolean;
+  /** How much more is needed to meet this criterion (0 when met). */
+  remaining: number;
+  /** "RM" for sales, otherwise a plain count. */
+  isMoney: boolean;
+}
+
+/** The 5 criteria of a score as a uniform list — for the Activities reports' "what's left to turn green" view. */
+export function criteriaStatus(score: MonthlyScore): CriterionStatus[] {
+  const row = (key: CriterionStatus["key"], label: string, done: number, target: number, points: number, isMoney = false): CriterionStatus => ({
+    key,
+    label,
+    done,
+    target,
+    met: points > 0,
+    remaining: points > 0 ? 0 : Math.max(0, target - done),
+    isMoney,
+  });
+  return [
+    row("training", "Training", score.training.count, score.training.target, score.training.points),
+    row("reach", "Reach", score.reach.count, score.reach.target, score.reach.points),
+    row("presentations", "Presentations", score.presentations.count, score.presentations.target, score.presentations.points),
+    row("prosperInvites", "PROSPER invites", score.prosperInvites.count, score.prosperInvites.target, score.prosperInvites.points),
+    row("sales", "Closed sales", score.sales.amount, score.sales.target, score.sales.points, true),
+  ];
+}
+
+/** Green needs 75+ points, i.e. 4 of the 5 criteria (20 pts each). How many MORE criteria this score must meet to get there (0 = already green). */
+export const GREEN_THRESHOLD = 75;
+export function criteriaNeededForGreen(score: MonthlyScore): number {
+  return Math.max(0, Math.ceil((GREEN_THRESHOLD - score.total) / POINTS_PER_CRITERION));
+}

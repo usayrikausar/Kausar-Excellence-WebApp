@@ -9,7 +9,12 @@ import {
   getGoal,
   getContests,
   getContestProgressForUids,
+  getGroupSalesByMonth,
+  getUnits,
 } from "@/lib/data";
+import { GroupSalesDashboard } from "@/components/daie/group-sales-dashboard";
+import { KONVENSYEN_PERIOD } from "@/lib/konvensyen";
+import { currentMonthKey } from "@/lib/scoring";
 import { HeroCarousel } from "@/components/daie/hero-carousel";
 import { KpiTile } from "@/components/daie/kpi-tile";
 import { BulletinCard } from "@/components/daie/bulletin-card";
@@ -18,16 +23,38 @@ import { ExpiryRemindersCard } from "@/components/daie/expiry-reminders-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatRM, isActiveStatus } from "@/lib/utils";
 
+/** FY months (Wasiyyah's FY25/26 runs Jul 2025 – Dec 2026), oldest → newest, up to and including the current month. */
+function fyMonthsToDate(): string[] {
+  const start = KONVENSYEN_PERIOD.start.slice(0, 7);
+  const end = [currentMonthKey(), KONVENSYEN_PERIOD.end.slice(0, 7)].sort()[0];
+  const months: string[] = [];
+  let [y, m] = start.split("-").map(Number);
+  while (`${y}-${String(m).padStart(2, "0")}` <= end) {
+    months.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return months;
+}
+
 export default async function HomePage() {
   const user = await requireDaie();
+  // Group-wide figures are for Group Admin and KDE only (agreed 2026-10-20).
+  const showGroupDashboard = user.isGroupAdmin || user.rank === "KDE";
+  const fyMonths = fyMonthsToDate();
 
-  const [totals, downline, recentBulletins, monthBulletinCount, goal, contests] = await Promise.all([
+  const [totals, downline, recentBulletins, monthBulletinCount, goal, contests, groupSales, units] = await Promise.all([
     getSalesTotalsForUid(user.uid),
     getDownline(user),
     getRecentBulletins(3),
     getThisMonthBulletinCount(),
     getGoal(user.uid),
     getContests(),
+    showGroupDashboard ? getGroupSalesByMonth(fyMonths[0]) : Promise.resolve(null),
+    showGroupDashboard ? getUnits() : Promise.resolve(null),
   ]);
 
   const personalSalesTotal = totals.perancangan + totals.kesPusakaBesar + totals.kesPusakaKecil;
@@ -53,6 +80,10 @@ export default async function HomePage() {
   return (
     <div className="space-y-6">
       <HeroCarousel />
+
+      {groupSales && units && fyMonths.length > 0 && (
+        <GroupSalesDashboard rows={groupSales} months={fyMonths} unitLabels={units} fyLabel="FY25/26" />
+      )}
 
       <ExpiryRemindersCard self={user} downline={downline} />
 

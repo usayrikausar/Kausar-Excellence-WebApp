@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { MonthKey } from "@/lib/scoring";
 
@@ -18,13 +18,24 @@ function recentMonths(count: number): MonthKey[] {
   });
 }
 
-/** `basePath` is the route to navigate to with `?month=` appended — e.g. `/report-card/{uid}` or `/team-report`. */
+/**
+ * `basePath` is the route to navigate to with `?month=` set — e.g.
+ * `/report-card/{uid}` or `/team-report`. Any other query params already on
+ * the page (e.g. the `daie` picked on Sales/Activities) are kept.
+ */
 export function ReportCardMonthSelect({ basePath, monthKey }: { basePath: string; monthKey: MonthKey }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const options = recentMonths(12);
 
+  function go(month: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("month", month);
+    router.push(`${basePath}?${params.toString()}`);
+  }
+
   return (
-    <Select value={monthKey} onValueChange={(v) => router.push(`${basePath}?month=${v}`)}>
+    <Select value={monthKey} onValueChange={go}>
       <SelectTrigger className="print:hidden"><SelectValue /></SelectTrigger>
       <SelectContent>
         {(options.includes(monthKey) ? options : [monthKey, ...options]).map((mk) => (

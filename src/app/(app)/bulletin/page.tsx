@@ -3,10 +3,17 @@ import { requireDaie } from "@/lib/auth/session";
 import { getAllBulletins } from "@/lib/data";
 import { BulletinCard } from "@/components/daie/bulletin-card";
 import { Button } from "@/components/ui/button";
+import { PageLinks } from "@/components/ui/page-links";
 
-export default async function BulletinPage() {
+const PAGE_SIZE = 12;
+
+export default async function BulletinPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const user = await requireDaie();
+  const { page: pageParam } = await searchParams;
   const bulletins = await getAllBulletins();
+  const totalPages = Math.max(1, Math.ceil(bulletins.length / PAGE_SIZE));
+  const page = Math.min(totalPages, Math.max(1, Number(pageParam) || 1));
+  const pageBulletins = bulletins.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -27,11 +34,14 @@ export default async function BulletinPage() {
           No bulletin posts yet.
         </p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {bulletins.map((b) => (
-            <BulletinCard key={b.id} bulletin={b} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {pageBulletins.map((b) => (
+              <BulletinCard key={b.id} bulletin={b} />
+            ))}
+          </div>
+          <PageLinks basePath="/bulletin" page={page} totalPages={totalPages} />
+        </>
       )}
     </div>
   );

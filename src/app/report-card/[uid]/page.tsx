@@ -119,10 +119,15 @@ export default async function ReportCardPage({
   searchParams,
 }: {
   params: Promise<{ uid: string }>;
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; view?: string }>;
 }) {
   const { uid } = await params;
-  const { month: monthParam } = await searchParams;
+  const { month: monthParam, view: viewParam } = await searchParams;
+  // "sales" is printed from My Sales & Collection, "activities" from
+  // Activities; no view = the full combined card.
+  const view = viewParam === "sales" || viewParam === "activities" ? viewParam : "full";
+  const showActivities = view !== "sales";
+  const showSales = view !== "activities";
   const viewer = await requireDaie();
 
   const target = await getUserByUid(uid);
@@ -196,7 +201,9 @@ export default async function ReportCardPage({
             <div className="font-[family-name:var(--font-display)] text-xl font-extrabold tracking-tight">
               Kausar<span className="text-accent">.</span> Group
             </div>
-            <div className="mt-3.5 font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight">Daie Performance Report Card</div>
+            <div className="mt-3.5 font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight">
+              {view === "sales" ? "Daie Sales Report Card" : view === "activities" ? "Daie Activity Report Card" : "Daie Performance Report Card"}
+            </div>
             <div className="mt-1 text-[13px] text-navy-100">Prepared for one-to-one coaching &middot; {unitLabel(target.unitId, units)}</div>
           </div>
           <div className="flex shrink-0 flex-col gap-0.5 whitespace-nowrap text-right text-xs text-navy-100">
@@ -227,6 +234,7 @@ export default async function ReportCardPage({
           </div>
         </div>
 
+        {showActivities && (
         <div className="border-b border-border px-9 py-5 print:break-inside-avoid">
           <SectionTitle hint="Behaviour score · 5 criteria, 20 pts each">Monthly traffic light</SectionTitle>
           <div className="grid grid-cols-[150px_1fr] items-center gap-6">
@@ -248,7 +256,10 @@ export default async function ReportCardPage({
             </div>
           </div>
         </div>
+        )}
 
+        {showSales && (
+        <>
         <div className="border-b border-border px-9 py-5 print:break-inside-avoid">
           <SectionTitle hint="This period vs. goal">Sales performance</SectionTitle>
           <div className="mb-4 grid grid-cols-3 gap-3.5">
@@ -367,6 +378,9 @@ export default async function ReportCardPage({
             Perlantikan Round Table isn&rsquo;t shown — the app doesn&rsquo;t track a recruitment-appointment count yet.
           </p>
         </div>
+
+        </>
+        )}
 
         <div className="px-9 py-5 print:break-inside-avoid">
           <SectionTitle>Mentor&rsquo;s coaching notes</SectionTitle>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PaginationFooter } from "@/components/ui/pagination-footer";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { TrafficLightDot } from "@/components/daie/traffic-light-dot";
@@ -36,11 +37,20 @@ type TrafficSortKey = "status" | "name" | "daieId" | "training" | "reach" | "pre
 type SalesSortKey = "name" | "daieId" | "rank" | "perancangan" | "berlian" | "mutiara" | "besar" | "kecil" | "collection";
 type KonvensyenSortKey = "name" | "daieId" | "alWasitah" | "hibah" | "pusaka" | "rookieAlWasitah" | "rookiePerancangan" | "qualified";
 
+const PAGE_SIZE = 50;
+
 export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow[]; units: Record<string, string>; showUnit: boolean }) {
   const [view, setView] = useState<View>("traffic");
   const [trafficSort, setTrafficSort] = useState<{ key: TrafficSortKey; dir: "asc" | "desc" }>({ key: "total", dir: "desc" });
   const [salesSort, setSalesSort] = useState<{ key: SalesSortKey; dir: "asc" | "desc" }>({ key: "perancangan", dir: "desc" });
   const [konvSort, setKonvSort] = useState<{ key: KonvensyenSortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
+  // Paged on screen only — every row is still rendered and printed (rows off
+  // the current page are hidden on screen but shown in print), since this
+  // page exists to be printed as one complete team report.
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const offPage = (i: number) => i < (currentPage - 1) * PAGE_SIZE || i >= currentPage * PAGE_SIZE;
 
   function toggleSort<K extends string>(current: { key: K; dir: "asc" | "desc" }, key: K, setter: (v: { key: K; dir: "asc" | "desc" }) => void) {
     setter(key === current.key ? { key, dir: current.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
@@ -125,7 +135,10 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
           <button
             key={v}
             type="button"
-            onClick={() => setView(v)}
+            onClick={() => {
+              setView(v);
+              setPage(1);
+            }}
             className={cn("rounded-t-md px-3 py-2 text-sm font-medium", view === v ? "border border-b-0 border-border bg-white text-ink" : "text-muted-foreground hover:text-ink")}
           >
             {v === "traffic" ? "Traffic light" : v === "sales" ? "Sales by category" : "Convention qualifiers"}
@@ -152,8 +165,8 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
                 </tr>
               </thead>
               <tbody>
-                {trafficRows.map((row) => (
-                  <tr key={row.uid} className={cn("border-b border-border", TRAFFIC_LIGHT_STYLES[row.score.color].rowClassName)}>
+                {trafficRows.map((row, i) => (
+                  <tr key={row.uid} className={cn("border-b border-border", TRAFFIC_LIGHT_STYLES[row.score.color].rowClassName, offPage(i) && "hidden print:table-row")}>
                     <td className="px-3 py-2"><TrafficLightDot color={row.score.color} withLabel /></td>
                     <td className="px-3 py-2 font-medium text-ink">{row.name}</td>
                     <td className="px-3 py-2 font-mono text-xs text-ink">{row.daieId}</td>
@@ -187,8 +200,8 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
                 </tr>
               </thead>
               <tbody>
-                {salesRows.map((row) => (
-                  <tr key={row.uid} className="border-b border-border">
+                {salesRows.map((row, i) => (
+                  <tr key={row.uid} className={cn("border-b border-border", offPage(i) && "hidden print:table-row")}>
                     <td className="px-3 py-2 font-medium text-ink">{row.name}</td>
                     <td className="px-3 py-2 font-mono text-xs text-ink">{row.daieId}</td>
                     <td className="px-3 py-2"><Badge variant="outline">{row.rank}</Badge></td>
@@ -221,14 +234,14 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
                 </tr>
               </thead>
               <tbody>
-                {konvRows.map((row) => {
+                {konvRows.map((row, i) => {
                   const alWasitah = konv(row, "Al-Wasitah RT");
                   const hibah = konv(row, "Hibah RT");
                   const pusaka = konv(row, "Pusaka RT");
                   const rookieAlWasitah = konv(row, "Rookie Al-Wasitah");
                   const rookiePerancangan = konv(row, "Rookie Perancangan");
                   return (
-                    <tr key={row.uid} className="border-b border-border">
+                    <tr key={row.uid} className={cn("border-b border-border", offPage(i) && "hidden print:table-row")}>
                       <td className="px-3 py-2 font-medium text-ink">{row.name}</td>
                       <td className="px-3 py-2 font-mono text-xs text-ink">{row.daieId}</td>
                       {showUnit && <td className="px-3 py-2 text-ink">{unitLabel(row.unitId, units)}</td>}
@@ -248,6 +261,11 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
           )}
         </table>
       </div>
+      {totalPages > 1 && (
+        <div className="print:hidden">
+          <PaginationFooter page={currentPage} totalPages={totalPages} onPageChange={setPage} />
+        </div>
+      )}
     </div>
   );
 }

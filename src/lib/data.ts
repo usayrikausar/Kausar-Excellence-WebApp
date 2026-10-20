@@ -130,6 +130,17 @@ export async function getDownline(user: CurrentUser): Promise<CurrentUser[]> {
   return snap.docs.map(toCurrentUser).filter((u) => u.uid !== user.uid);
 }
 
+/**
+ * Whose report a page should show when an upline/mentor passes `?daie=<uid>`:
+ * that person if they're in the viewer's downline (any depth — group admins'
+ * getDownline is everyone), otherwise the viewer themself. Never trusts the
+ * param on its own.
+ */
+export function pickViewedDaie(viewer: CurrentUser, downline: CurrentUser[], daieParam: string | undefined): CurrentUser {
+  if (!daieParam || daieParam === viewer.uid) return viewer;
+  return downline.find((m) => m.uid === daieParam) ?? viewer;
+}
+
 function emptySalesTotals(): SalesTotals {
   return {
     perancangan: 0,
@@ -275,6 +286,63 @@ export function sumTotals(list: SalesTotals[]): SalesTotals {
     }),
     { perancangan: 0, perancanganWasiat: 0, perancanganHibah: 0, pengurusanBerlian: 0, pengurusanMutiara: 0, kesPusakaBesar: 0, kesPusakaKecil: 0, collectionTotal: 0 },
   );
+}
+
+/** One unit's production in one month — see getGroupSalesByMonth. */
+export interface UnitMonthSales {
+  monthKey: MonthKey;
+  unitId: string;
+  /** RM */
+  perancangan: number;
+  /** Al Wasitah cases (Berlian + Mutiara) */
+  pengurusan: number;
+  /** RM (Besar + Kecil) */
+  pusaka: number;
+}
+
+const GROUP_SALES_CACHE_MS = 5 * 60 * 1000;
+let groupSalesCache: { key: string; at: number; rows: UnitMonthSales[] } | null = null;
+
+/**
+ * Whole-Kausar-Group production by month × unit since `fromMonth`, for the
+ * Group Admin / KDE dashboard on Home. A sale counts toward the unit its
+ * daie is filed under today (users.unitId), same as Reports' unit table.
+ *
+ * Reads every sale in the period, so the result is kept in memory for a few
+ * minutes (the page server keeps one warm instance — see
+ * scripts/ensure-min-instances.mjs) instead of re-reading on every Home load.
+ */
+export async function getGroupSalesByMonth(fromMonth: MonthKey): Promise<UnitMonthSales[]> {
+  if (groupSalesCache && groupSalesCache.key === fromMonth && Date.now() - groupSalesCache.at < GROUP_SALES_CACHE_MS) {
+    return groupSalesCache.rows;
+  }
+  const [salesSnap, usersSnap] = await Promise.all([
+    adminDb
+      .collection("sales")
+      .where("date", ">=", new Date(`${fromMonth}-01T00:00:00.000Z`))
+      .select("uid", "category", "subCategory", "amount", "count", "date")
+      .get(),
+    adminDb.collection("users").select("unitId").get(),
+  ]);
+  const unitByUid = new Map(usersSnap.docs.map((d) => [d.id, d.get("unitId") as string]));
+
+  const byKey = new Map<string, UnitMonthSales>();
+  salesSnap.forEach((doc) => {
+    const sale = doc.data() as SaleDoc;
+    const unitId = unitByUid.get(sale.uid);
+    if (!unitId) return;
+    const monthKey = (sale.date as unknown as { toDate: () => Date }).toDate().toISOString().slice(0, 7);
+    const key = `${monthKey}|${unitId}`;
+    const row = byKey.get(key) ?? { monthKey, unitId, perancangan: 0, pengurusan: 0, pusaka: 0 };
+    if (sale.category === "perancangan") row.perancangan += sale.amount ?? 0;
+    else if (sale.category === "pengurusan") row.pengurusan += sale.count ?? 0;
+    else if (sale.category === "kesPusaka") row.pusaka += sale.amount ?? 0;
+    byKey.set(key, row);
+  });
+
+  const rows = [...byKey.values()];
+  groupSalesCache = { key: fromMonth, at: Date.now(), rows };
+  return rows;
 }
 
 export interface SalesSummary {

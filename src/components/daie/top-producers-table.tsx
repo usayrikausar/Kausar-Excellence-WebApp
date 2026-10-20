@@ -5,6 +5,8 @@ import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { PaginationFooter } from "@/components/ui/pagination-footer";
+import { usePagination } from "@/components/ui/use-pagination";
 import { cn, formatRM } from "@/lib/utils";
 import type { CurrentUser } from "@/lib/types";
 
@@ -66,6 +68,7 @@ export function TopProducersTable({ producers }: { producers: Producer[] }) {
     copy.sort((a, b) => (descending ? b[sortKey] - a[sortKey] : a[sortKey] - b[sortKey]));
     return copy;
   }, [producers, sortKey, descending]);
+  const { page, setPage, totalPages, pageStart, pageItems } = usePagination(sorted, 25);
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) setDescending((d) => !d);
@@ -73,6 +76,7 @@ export function TopProducersTable({ producers }: { producers: Producer[] }) {
       setSortKey(key);
       setDescending(true);
     }
+    setPage(1);
   }
 
   if (producers.length === 0) {
@@ -117,9 +121,9 @@ export function TopProducersTable({ producers }: { producers: Producer[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sorted.map((p, i) => (
+            {pageItems.map((p, i) => (
               <TableRow key={p.uid}>
-                <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{pageStart + i + 1}</TableCell>
                 <TableCell className="font-mono text-xs">{p.daieId}</TableCell>
                 <TableCell className="font-medium">{p.name}</TableCell>
                 <TableCell><Badge variant="outline">{p.rank}</Badge></TableCell>
@@ -131,6 +135,7 @@ export function TopProducersTable({ producers }: { producers: Producer[] }) {
             ))}
           </TableBody>
         </Table>
+        {totalPages > 1 && <PaginationFooter page={page} totalPages={totalPages} onPageChange={setPage} />}
       </CardContent>
     </Card>
   );

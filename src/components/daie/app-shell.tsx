@@ -8,9 +8,9 @@ export function AppShell({ user, onboardingComplete, children }: { user: Current
     <div className="flex min-h-screen w-full">
       <SessionSync />
       <Sidebar user={user} onboardingComplete={onboardingComplete} />
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={user} />
-        <main className="flex-1 overflow-y-auto bg-muted/40 p-6 lg:p-8">{children}</main>
+        <main className="min-w-0 flex-1 overflow-y-auto bg-muted/40 p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );
