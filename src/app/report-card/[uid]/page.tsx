@@ -10,6 +10,7 @@ import {
   getContestProgressForUids,
   getUnits,
   getSalesSummary,
+  canViewDaie,
 } from "@/lib/data";
 import { currentMonthKey, TRAFFIC_LIGHT_STYLES, type MonthKey } from "@/lib/scoring";
 import { computeKonvensyenProgress, isRookieEligible, isWithinKonvensyenPeriod, KONVENSYEN_PERIOD } from "@/lib/konvensyen";
@@ -133,7 +134,8 @@ export default async function ReportCardPage({
   const target = await getUserByUid(uid);
   if (!target) notFound();
 
-  const canView = viewer.uid === uid || viewer.isGroupAdmin || target.lineagePath.includes(viewer.uid);
+  // Self, Group Admin, anyone upline, or the KDE of the unit the daie is filed under.
+  const canView = canViewDaie(viewer, target);
   if (!canView) redirect("/");
 
   const monthKey: MonthKey = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonthKey();

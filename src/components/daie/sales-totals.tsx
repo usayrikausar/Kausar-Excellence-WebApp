@@ -13,10 +13,13 @@ export function SalesComparison({
   personalTotals,
   groupTotals,
   groupStatusCounts,
+  groupLabel = "My Total Group Production",
 }: {
   personalTotals: SalesTotals;
   groupTotals: SalesTotals | null;
   groupStatusCounts?: { active: number; expired: number } | null;
+  /** Header for the group column — e.g. a unit's or the whole Kausar Group's name when a KDE switches view. */
+  groupLabel?: string;
 }) {
   const personalPengurusan = personalTotals.pengurusanBerlian + personalTotals.pengurusanMutiara;
   const personalKesPusaka = personalTotals.kesPusakaBesar + personalTotals.kesPusakaKecil;
@@ -60,7 +63,7 @@ export function SalesComparison({
           <div>Metric</div>
           <div>Personal</div>
           <div>
-            My Total Group Production
+            {groupLabel}
             {groupStatusCounts && (
               <div className="mt-0.5 text-[11px] font-semibold normal-case tracking-normal">
                 <span className="text-success">{groupStatusCounts.active} active</span>

@@ -44,20 +44,25 @@ export function GroupSalesDashboard({
   months,
   unitLabels,
   fyLabel,
+  onlyUnitId,
 }: {
   rows: UnitMonthSales[];
   /** FY months oldest → newest, ending at the current month. */
   months: string[];
   unitLabels: Record<string, string>;
   fyLabel: string;
+  /** "My group" view: show just this unit instead of all 5. */
+  onlyUnitId?: string;
 }) {
+  const shownUnits: ReadonlyArray<(typeof DASHBOARD_UNITS)[number]> = onlyUnitId ? DASHBOARD_UNITS.filter((u) => u.id === onlyUnitId) : DASHBOARD_UNITS;
+  const scopeName = onlyUnitId ? (unitLabels[onlyUnitId] ?? onlyUnitId) : "Kausar Group";
   const [metric, setMetric] = useState<Metric>("perancangan");
   const { format, label } = METRICS[metric];
   const currentMonth = months[months.length - 1];
 
   const value = (monthKey: string, unitId: string) =>
     rows.find((r) => r.monthKey === monthKey && r.unitId === unitId)?.[metric] ?? 0;
-  const monthTotal = (monthKey: string) => DASHBOARD_UNITS.reduce((s, u) => s + value(monthKey, u.id), 0);
+  const monthTotal = (monthKey: string) => shownUnits.reduce((s, u) => s + value(monthKey, u.id), 0);
   const unitFytd = (unitId: string) => months.reduce((s, mk) => s + value(mk, unitId), 0);
 
   const fytd = months.reduce((s, mk) => s + monthTotal(mk), 0);
@@ -69,8 +74,10 @@ export function GroupSalesDashboard({
       <CardContent className="space-y-5 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-ink">Kausar Group performance</h2>
-            <p className="text-sm text-muted-foreground">Total group sales (TGS) by unit · {fyLabel}</p>
+            <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-ink">{scopeName} performance</h2>
+            <p className="text-sm text-muted-foreground">
+              {onlyUnitId ? "Unit sales" : "Total group sales (TGS) by unit"} · {fyLabel}
+            </p>
           </div>
           <div role="tablist" aria-label="Sales category" className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
             {(Object.keys(METRICS) as Metric[]).map((m) => (
@@ -102,7 +109,7 @@ export function GroupSalesDashboard({
         </div>
 
         <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-          {DASHBOARD_UNITS.map((u) => (
+          {shownUnits.map((u) => (
             <span key={u.id} className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: u.color }} />
               {u.short} · {unitLabels[u.id] ?? u.id}
@@ -124,7 +131,7 @@ export function GroupSalesDashboard({
                     <span className="h-4 whitespace-nowrap text-[10px] font-bold leading-4 tabular-nums text-ink">{total > 0 ? (metric === "pengurusan" ? total : compactRM(total)) : ""}</span>
                     <div className="flex h-44 w-full max-w-[40px] flex-col-reverse overflow-hidden rounded-t">
                       <div className="flex w-full flex-col-reverse" style={{ height: `${(total / maxBar) * 100}%` }}>
-                        {DASHBOARD_UNITS.map((u) => {
+                        {shownUnits.map((u) => {
                           const v = value(mk, u.id);
                           if (v <= 0) return null;
                           return (
@@ -155,7 +162,7 @@ export function GroupSalesDashboard({
               </tr>
             </thead>
             <tbody className="tabular-nums">
-              {DASHBOARD_UNITS.map((u) => (
+              {shownUnits.map((u) => (
                 <tr key={u.id}>
                   <td className="border-b border-border py-2 pr-2">
                     <span className="inline-flex items-center gap-2">
@@ -168,7 +175,7 @@ export function GroupSalesDashboard({
                 </tr>
               ))}
               <tr className="font-bold text-ink">
-                <td className="py-2 pr-2">Kausar Group (TGS)</td>
+                <td className="py-2 pr-2">{onlyUnitId ? `${scopeName} total` : "Kausar Group (TGS)"}</td>
                 <td className="py-2 pr-2 text-right">{format(thisMonth)}</td>
                 <td className="py-2 text-right">{format(fytd)}</td>
               </tr>

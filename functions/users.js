@@ -23,8 +23,10 @@ function generateTempPassword() {
   return randomBytes(9).toString('base64url'); // 12 chars, URL-safe
 }
 
+// The account a caller acts as: a linked login (loginLinks/{authUid}) carries
+// a profileUid claim pointing at the daie account it opens.
 async function requireGroupAdmin(request) {
-  const callerUid = request.auth?.uid;
+  const callerUid = request.auth?.token?.profileUid ?? request.auth?.uid;
   if (!callerUid) throw new HttpsError('unauthenticated', 'Sign in required.');
   const db = getFirestore();
   const callerDoc = await db.collection('users').doc(callerUid).get();
@@ -151,19 +153,21 @@ export const updateUser = onCall(async (request) => {
     // Actually block login, not just hide it in the UI — same convention as
     // beana-home-quran's setUserActive.
     if (hasLogin) await auth.updateUser(uid, { disabled: subscriptionStatus === 'inactive' });
+    const linkedLogins = await db.collection('loginLinks').where('profileUid', '==', uid).get();
+    for (const link of linkedLogins.docs) await auth.updateUser(link.id, { disabled: subscriptionStatus === 'inactive' });
   }
 
   if (Object.keys(patch).length === 0) return { uid };
 
   await userRef.set(patch, { merge: true });
 
-  if (hasLogin && (patch.rank !== undefined || patch.unitId !== undefined || patch.isGroupAdmin !== undefined)) {
+  if (patch.rank !== undefined || patch.unitId !== undefined || patch.isGroupAdmin !== undefined) {
     const merged = { ...snap.data(), ...patch };
-    await auth.setCustomUserClaims(uid, {
-      rank: merged.rank,
-      unitId: merged.unitId,
-      isGroupAdmin: merged.isGroupAdmin === true,
-    });
+    const claims = { rank: merged.rank, unitId: merged.unitId, isGroupAdmin: merged.isGroupAdmin === true };
+    if (hasLogin) await auth.setCustomUserClaims(uid, claims);
+    // Linked logins into this account carry the same role claims.
+    const links = await db.collection('loginLinks').where('profileUid', '==', uid).get();
+    for (const link of links.docs) await auth.setCustomUserClaims(link.id, { ...claims, profileUid: uid });
   }
 
   return { uid };

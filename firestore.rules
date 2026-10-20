@@ -26,6 +26,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // The daie account the caller acts as. Normally their own Auth uid; a
+    // linked login (a second email for an existing account, e.g. a Ketua
+    // Agensi's kausargroup.com address or a shared company ID — see
+    // loginLinks below and src/lib/auth/session.ts) carries a profileUid
+    // custom claim pointing at the account it opens.
+    function myUid() {
+      return request.auth.token.get('profileUid', request.auth.uid);
+    }
+
     function isGroupAdmin() {
       return signedIn() && request.auth.token.isGroupAdmin == true;
     }
@@ -35,8 +44,8 @@ service cloud.firestore {
     // upline chain — a KDE or DPM looking at their own downline).
     function isOwnLineage(targetUid) {
       return signedIn() && (
-        targetUid == request.auth.uid ||
-        request.auth.uid in get(/databases/$(database)/documents/users/$(targetUid)).data.lineagePath
+        targetUid == myUid() ||
+        myUid() in get(/databases/$(database)/documents/users/$(targetUid)).data.lineagePath
       );
     }
 
@@ -55,8 +64,8 @@ service cloud.firestore {
     // lineagePath, and subscriptionStatus consistent instead of letting a
     // client hand-edit its own hierarchy position.
     match /users/{uid} {
-      allow read: if isGroupAdmin() || uid == request.auth.uid ||
-        (signedIn() && request.auth.uid in resource.data.lineagePath);
+      allow read: if isGroupAdmin() || uid == myUid() ||
+        (signedIn() && myUid() in resource.data.lineagePath);
       allow write: if false;
     }
 
@@ -66,14 +75,14 @@ service cloud.firestore {
     // lineage's entries. No client update/delete — entries are an append-only
     // ledger for Phase 1.
     match /sales/{id} {
-      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.uid == myUid();
       allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
       allow update, delete: if false;
     }
 
     // collections/{id} — same shape and rationale as sales/{id}.
     match /collections/{id} {
-      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.uid == myUid();
       allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
       allow update, delete: if false;
     }
@@ -100,15 +109,15 @@ service cloud.firestore {
     // downline's self-reported amounts to total up a "kumpulan" target).
     match /contestProgress/{id} {
       allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
-      allow create, update: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow create, update: if signedIn() && request.resource.data.uid == myUid();
       allow delete: if false;
     }
 
     // goals/{uid} — a daie's own stated sales/income targets. Doc id IS the
     // uid, so isOwnLineage(uid) works directly against it.
     match /goals/{uid} {
-      allow read: if isGroupAdmin() || uid == request.auth.uid || isOwnLineage(uid);
-      allow write: if signedIn() && uid == request.auth.uid;
+      allow read: if isGroupAdmin() || uid == myUid() || isOwnLineage(uid);
+      allow write: if signedIn() && uid == myUid();
     }
 
     // wasitahSubscription/{uid} — a daie's own self-reported Al Wasitah
@@ -116,8 +125,8 @@ service cloud.firestore {
     // promotion-quota tracker. Same self-write/upline-read shape as goals —
     // doc id IS the uid.
     match /wasitahSubscription/{uid} {
-      allow read: if isGroupAdmin() || uid == request.auth.uid || isOwnLineage(uid);
-      allow write: if signedIn() && uid == request.auth.uid;
+      allow read: if isGroupAdmin() || uid == myUid() || isOwnLineage(uid);
+      allow write: if signedIn() && uid == myUid();
     }
 
     // achievements/{id} — badges manually awarded by a group admin, shown on
@@ -133,8 +142,8 @@ service cloud.firestore {
     // else's pipeline.
     match /prospects/{prospectId} {
       allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
-      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.uid == myUid();
+      allow update: if signedIn() && resource.data.uid == myUid();
       allow delete: if false;
 
       // updates/{updateId} — one dated note per stage change, written on
@@ -157,7 +166,7 @@ service cloud.firestore {
       // clutter neither party could read back per the rule below anyway.
       match /updates/{updateId} {
         allow read: if isGroupAdmin() || isOwnLineage(get(/databases/$(database)/documents/prospects/$(prospectId)).data.uid);
-        allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+        allow create: if signedIn() && request.resource.data.uid == myUid();
         allow update, delete: if false;
       }
     }
@@ -167,7 +176,7 @@ service cloud.firestore {
     // tied to one named prospect. Same self-write/lineage-read shape as
     // sales/collections.
     match /activities/{id} {
-      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.uid == myUid();
       allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
       allow update, delete: if false;
     }
@@ -183,6 +192,13 @@ service cloud.firestore {
     // without ever scanning the code — the trainingAttendance create rule's
     // own get() lookup below is a privileged rules-engine call, not a client
     // read, so it still works for real check-ins even with this locked down.
+    // loginLinks/{authUid} — maps a linked login to the account it opens.
+    // Written only by admin scripts (scripts/create-linked-logins-production.mjs)
+    // and read only server-side via the Admin SDK.
+    match /loginLinks/{authUid} {
+      allow read, write: if false;
+    }
+
     match /trainings/{id} {
       allow read: if isGroupAdmin();
       allow write: if isGroupAdmin();
@@ -208,8 +224,8 @@ service cloud.firestore {
       allow read: if isGroupAdmin() || isOwnLineage(resource.data.uid);
 
       allow create: if signedIn()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.markedBy == request.auth.uid
+        && request.resource.data.uid == myUid()
+        && request.resource.data.markedBy == myUid()
         && (
           request.resource.data.method == "self_reported" ||
           (request.resource.data.method == "qr" &&
@@ -218,7 +234,7 @@ service cloud.firestore {
 
       allow create: if isGroupAdmin()
         && request.resource.data.method == "manual"
-        && request.resource.data.markedBy == request.auth.uid;
+        && request.resource.data.markedBy == myUid();
 
       allow update, delete: if false;
     }

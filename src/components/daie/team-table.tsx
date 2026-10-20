@@ -57,11 +57,14 @@ export function TeamTable({
   team,
   rootUid,
   viewerName,
+  outsideNames,
   showUnit,
   units,
 }: {
   team: TeamMember[];
   rootUid: string | null;
+  /** Names for uplines who aren't in `team` themselves (e.g. a unit's KDE whose introducer sits in another unit). */
+  outsideNames?: Record<string, string>;
   viewerName: string;
   showUnit: boolean;
   units: Record<string, string>;
@@ -80,7 +83,7 @@ export function TeamTable({
   function uplineName(member: TeamMember): string {
     if (!member.uplineId) return "—";
     if (member.uplineId === rootUid) return viewerName;
-    return nameByUid.get(member.uplineId) ?? "—";
+    return nameByUid.get(member.uplineId) ?? outsideNames?.[member.uplineId] ?? "—";
   }
 
   function handleSort(key: SortKey) {

@@ -43,11 +43,14 @@ export function TeamTree({
   team,
   rootUid,
   viewerName,
+  outsideNames,
   showUnit,
   units,
 }: {
   team: TeamMember[];
   rootUid: string | null;
+  /** Names for uplines who aren't in `team` themselves (e.g. a unit's KDE whose introducer sits in another unit). */
+  outsideNames?: Record<string, string>;
   /** The signed-in viewer's own name — used to label "Upline" for their direct reports (who aren't in `team`, since getDownline excludes self). */
   viewerName: string;
   showUnit: boolean;
@@ -72,7 +75,7 @@ export function TeamTree({
   function uplineName(member: TeamMember): string {
     if (!member.uplineId) return "—";
     if (member.uplineId === rootUid) return viewerName;
-    return nameByUid.get(member.uplineId) ?? "—";
+    return nameByUid.get(member.uplineId) ?? outsideNames?.[member.uplineId] ?? "—";
   }
 
   function exportCsv() {
@@ -112,7 +115,15 @@ export function TeamTree({
     downloadCsv(`kausar-team-${today}.csv`, headers, rows);
   }
 
-  const roots = childrenByParent.get(rootUid) ?? [];
+  // rootUid null (Group Admin's all-units view, or a KDE's whole unit): a
+  // root is anyone whose upline isn't in this list — no upline at all, or an
+  // upline outside the unit/scope (the viewer themself, a cross-unit
+  // introducer).
+  const roots = useMemo(() => {
+    if (rootUid !== null) return childrenByParent.get(rootUid) ?? [];
+    const inTeam = new Set(team.map((m) => m.uid));
+    return team.filter((m) => !m.uplineId || !inTeam.has(m.uplineId));
+  }, [rootUid, childrenByParent, team]);
   // Paged by top-level branch (25 per page) — a KDE or Group Admin can have
   // hundreds of direct roots; expanding a branch still shows its whole subtree.
   const { page, setPage, totalPages, pageItems: pageRoots } = usePagination(roots, 25);

@@ -31,8 +31,20 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   try {
     const decoded = await adminAuth.verifyIdToken(token);
-    const snap = await adminDb.collection("users").doc(decoded.uid).get();
-    if (!snap.exists) return null;
+    // A linked login (loginLinks/{authUid} → { profileUid }) is a second way
+    // into an existing daie account — e.g. a Ketua Agensi's kausargroup.com
+    // address, or two people sharing the Kausar Wealth company ID. The app
+    // then acts as that profile everywhere (see firestore.rules' myUid()).
+    let profileUid = decoded.uid;
+    let snap = await adminDb.collection("users").doc(profileUid).get();
+    if (!snap.exists) {
+      const link = await adminDb.collection("loginLinks").doc(decoded.uid).get();
+      const linked = link.exists ? (link.data()!.profileUid as string | undefined) : undefined;
+      if (!linked) return null;
+      profileUid = linked;
+      snap = await adminDb.collection("users").doc(profileUid).get();
+      if (!snap.exists) return null;
+    }
 
     const data = snap.data()!;
     if (data.subscriptionStatus === "inactive") return null;
@@ -42,7 +54,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     // Server Components can only pass plain objects/built-ins across to
     // Client Components (AppShell/Sidebar/Topbar all take `user` as a prop).
     return {
-      uid: decoded.uid,
+      uid: profileUid,
       daieId: data.daieId,
       name: data.name,
       email: data.email,

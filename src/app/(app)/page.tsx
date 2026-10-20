@@ -11,7 +11,11 @@ import {
   getContestProgressForUids,
   getGroupSalesByMonth,
   getUnits,
+  canSwitchScope,
+  resolveViewScope,
+  scopeOptions,
 } from "@/lib/data";
+import { ScopeSwitcher } from "@/components/daie/scope-switcher";
 import { GroupSalesDashboard } from "@/components/daie/group-sales-dashboard";
 import { KONVENSYEN_PERIOD } from "@/lib/konvensyen";
 import { currentMonthKey } from "@/lib/scoring";
@@ -40,10 +44,13 @@ function fyMonthsToDate(): string[] {
   return months;
 }
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ scope?: string }> }) {
   const user = await requireDaie();
-  // Group-wide figures are for Group Admin and KDE only (agreed 2026-10-20).
-  const showGroupDashboard = user.isGroupAdmin || user.rank === "KDE";
+  const { scope: scopeParamValue } = await searchParams;
+  // Group-wide figures are for Group Admin and KDE only (agreed 2026-10-20),
+  // with an Overall / My group switcher.
+  const showGroupDashboard = canSwitchScope(user);
+  const scope = resolveViewScope(user, scopeParamValue);
   const fyMonths = fyMonthsToDate();
 
   const [totals, downline, recentBulletins, monthBulletinCount, goal, contests, groupSales, units] = await Promise.all([
@@ -82,7 +89,16 @@ export default async function HomePage() {
       <HeroCarousel />
 
       {groupSales && units && fyMonths.length > 0 && (
-        <GroupSalesDashboard rows={groupSales} months={fyMonths} unitLabels={units} fyLabel="FY25/26" />
+        <div className="space-y-3">
+          <ScopeSwitcher basePath="/" {...scopeOptions(user, scope, units)} />
+          <GroupSalesDashboard
+            rows={groupSales}
+            months={fyMonths}
+            unitLabels={units}
+            fyLabel="FY25/26"
+            onlyUnitId={scope.kind === "unit" ? scope.unitId : undefined}
+          />
+        </div>
       )}
 
       <ExpiryRemindersCard self={user} downline={downline} />

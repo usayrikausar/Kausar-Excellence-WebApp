@@ -15,7 +15,14 @@ type TeamMember = CurrentUser & {
 };
 
 /** Toggles between the hierarchy tree (structure browsing) and a flat, numbered, sortable, paginated list (easy scroll-tracking for large teams). */
-export function TeamView(props: { team: TeamMember[]; rootUid: string | null; viewerName: string; showUnit: boolean; units: Record<string, string> }) {
+export function TeamView(props: {
+  team: TeamMember[];
+  rootUid: string | null;
+  viewerName: string;
+  outsideNames?: Record<string, string>;
+  showUnit: boolean;
+  units: Record<string, string>;
+}) {
   const [view, setView] = useState<"tree" | "list">("tree");
 
   return (

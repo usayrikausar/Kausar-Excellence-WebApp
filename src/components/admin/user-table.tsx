@@ -146,7 +146,7 @@ export function UserTable({ users, units, allUsers }: { users: CurrentUser[]; un
                       <Badge variant="accent" className="ml-2">Group Admin</Badge>
                     )}
                     {user.recordOnly && (
-                      <Badge variant="outline" className="ml-2">Sales record only — no login</Badge>
+                      <Badge variant="outline" className="ml-2">No login of its own</Badge>
                     )}
                     <div className="text-xs text-muted-foreground">{user.email}</div>
                   </TableCell>
@@ -170,7 +170,7 @@ export function UserTable({ users, units, allUsers }: { users: CurrentUser[]; un
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <EditUserDialog user={user} units={units} users={allUsers ?? users} />
-                      {!user.recordOnly && <SubscriptionToggle uid={user.uid} status={user.subscriptionStatus} />}
+                      <SubscriptionToggle uid={user.uid} status={user.subscriptionStatus} />
                     </div>
                   </TableCell>
                 </TableRow>

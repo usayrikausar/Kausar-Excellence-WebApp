@@ -1,7 +1,20 @@
 import Link from "next/link";
 import { requireDaie } from "@/lib/auth/session";
-import { getProspectsForUid, getMonthlyScoreForUid, getMonthlyScoresForUids, getDownline, pickViewedDaie } from "@/lib/data";
-import { currentMonthKey, type MonthKey } from "@/lib/scoring";
+import {
+  getProspectsForUid,
+  getMonthlyScoreForUid,
+  getMonthlyScoresForUids,
+  pickViewedDaie,
+  getUnits,
+  canSwitchScope,
+  resolveViewScope,
+  scopeOptions,
+  getScopeMembers,
+} from "@/lib/data";
+import { UNIT_LABELS } from "@/lib/constants";
+import { currentMonthKey, type MonthKey, type TrafficLightColor } from "@/lib/scoring";
+import { ScopeSwitcher } from "@/components/daie/scope-switcher";
+import { UnitTrafficLightCounts } from "@/components/daie/unit-traffic-light-counts";
 import { cn } from "@/lib/utils";
 import { LogActivityForm } from "@/components/daie/log-activity-form";
 import { NewProspectDialog } from "@/components/daie/new-prospect-dialog";
@@ -21,30 +34,46 @@ function monthLabel(monthKey: MonthKey) {
 export default async function ActivitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; daie?: string; report?: string }>;
+  searchParams: Promise<{ month?: string; daie?: string; report?: string; scope?: string }>;
 }) {
   const user = await requireDaie();
-  const { month: monthParam, daie: daieParam, report: reportParam } = await searchParams;
+  const { month: monthParam, daie: daieParam, report: reportParam, scope: scopeParamValue } = await searchParams;
   const monthKey: MonthKey = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonthKey();
+  const scope = resolveViewScope(user, scopeParamValue);
+  const totalsOnly = scope.kind === "overall";
 
-  const [prospects, downline] = await Promise.all([getProspectsForUid(user.uid), getDownline(user)]);
-  const hasTeam = downline.length > 0;
+  const [prospects, members, units] = await Promise.all([getProspectsForUid(user.uid), getScopeMembers(user, scope), getUnits()]);
+  // Individual reports are only for people the viewer may open by name: in a
+  // KDE's "Overall" view that's still just their own unit.
+  const pickable = totalsOnly ? members.filter((m) => m.unitId === user.unitId) : members;
+  const hasTeam = members.length > 0;
   const report = hasTeam && reportParam === "group" ? "group" : "individual";
 
-  const viewed = pickViewedDaie(user, downline, daieParam);
+  const viewed = pickViewedDaie(user, pickable, daieParam);
   const [viewedScore, teamScoresByUid] = await Promise.all([
     report === "individual" ? getMonthlyScoreForUid(viewed.uid, monthKey) : Promise.resolve(null),
-    report === "group" ? getMonthlyScoresForUids(downline.map((m) => m.uid), monthKey) : Promise.resolve(null),
+    report === "group" ? getMonthlyScoresForUids((totalsOnly ? [user, ...members] : members).map((m) => m.uid), monthKey) : Promise.resolve(null),
   ]);
-  const teamRows = teamScoresByUid
-    ? downline.map((m) => ({ uid: m.uid, name: m.name, daieId: m.daieId, score: teamScoresByUid.get(m.uid)! }))
-    : [];
-  const pickerOptions = [user, ...downline]
+  const teamRows =
+    teamScoresByUid && !totalsOnly
+      ? members.map((m) => ({ uid: m.uid, name: m.name, daieId: m.daieId, score: teamScoresByUid.get(m.uid)! }))
+      : [];
+  // Overall: colour counts per unit, aggregated here so no names leave the server.
+  const unitCounts =
+    teamScoresByUid && totalsOnly
+      ? Object.keys(UNIT_LABELS).map((unitId) => {
+          const counts: Record<TrafficLightColor, number> = { green: 0, amber: 0, red: 0, black: 0 };
+          for (const m of [user, ...members]) if (m.unitId === unitId) counts[teamScoresByUid.get(m.uid)!.color] += 1;
+          return { unitId, counts };
+        })
+      : null;
+  const pickerOptions = [user, ...pickable]
     .map((m) => ({ uid: m.uid, name: m.name, daieId: m.daieId, rank: m.rank }))
     .sort((a, b) => (a.uid === user.uid ? -1 : b.uid === user.uid ? 1 : a.name.localeCompare(b.name)));
 
   const tabHref = (r: "individual" | "group") => {
     const params = new URLSearchParams({ month: monthKey });
+    if (scopeParamValue) params.set("scope", scopeParamValue);
     if (r === "group") params.set("report", "group");
     else if (viewed.uid !== user.uid) params.set("daie", viewed.uid);
     return `/activities?${params.toString()}`;
@@ -65,6 +94,7 @@ export default async function ActivitiesPage({
       </div>
 
       <section className="space-y-3">
+        {canSwitchScope(user) && <ScopeSwitcher basePath="/activities" {...scopeOptions(user, scope, units)} />}
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-ink">Activity report</h2>
@@ -88,7 +118,7 @@ export default async function ActivitiesPage({
             )}
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-            {report === "individual" && hasTeam && (
+            {report === "individual" && pickable.length > 0 && (
               <DaiePicker basePath="/activities" selfUid={user.uid} selectedUid={viewed.uid} options={pickerOptions} />
             )}
             <div className="w-48">
@@ -105,7 +135,8 @@ export default async function ActivitiesPage({
             score={viewedScore}
           />
         )}
-        {report === "group" && <TeamTrafficLightTable rows={teamRows} monthLabel={monthLabel(monthKey)} />}
+        {report === "group" && !unitCounts && <TeamTrafficLightTable rows={teamRows} monthLabel={monthLabel(monthKey)} />}
+        {report === "group" && unitCounts && <UnitTrafficLightCounts rows={unitCounts} units={units} monthLabel={monthLabel(monthKey)} />}
       </section>
 
       <LogActivityForm uid={user.uid} />

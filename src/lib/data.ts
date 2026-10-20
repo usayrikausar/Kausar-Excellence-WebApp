@@ -141,6 +141,83 @@ export function pickViewedDaie(viewer: CurrentUser, downline: CurrentUser[], dai
   return downline.find((m) => m.uid === daieParam) ?? viewer;
 }
 
+/**
+ * What a page shows a viewer, chosen by the Overall / My group switcher
+ * (`?scope=`, see components/daie/scope-switcher.tsx):
+ * - lineage: everyone else — their own downline, as always.
+ * - all:     Group Admin's default — every daie in every unit, full detail.
+ * - unit:    a KDE's "My group" (or a Group Admin picking one unit) —
+ *            everyone FILED UNDER that unit, not just the KDE's personal
+ *            lineage. Kausar Wealth's KDE is a company code most of the unit
+ *            doesn't sit under, so lineage alone would show almost nobody.
+ * - overall: a KDE's "Overall" — the whole Kausar Group, but totals only:
+ *            pages must aggregate before anything reaches the browser and
+ *            never list another unit's daie by name.
+ */
+export type ViewScope =
+  | { kind: "lineage" }
+  | { kind: "all" }
+  | { kind: "unit"; unitId: string }
+  | { kind: "overall" };
+
+export function canSwitchScope(viewer: CurrentUser): boolean {
+  return viewer.isGroupAdmin || viewer.rank === "KDE";
+}
+
+export function resolveViewScope(viewer: CurrentUser, param: string | undefined): ViewScope {
+  if (viewer.isGroupAdmin) {
+    if (param && param in UNIT_LABELS) return { kind: "unit", unitId: param };
+    return { kind: "all" };
+  }
+  if (viewer.rank === "KDE") return param === "overall" ? { kind: "overall" } : { kind: "unit", unitId: viewer.unitId };
+  return { kind: "lineage" };
+}
+
+/** The switcher's choices for this viewer, and which one `scope` is (null = the default, no `?scope=`). */
+export function scopeOptions(
+  viewer: CurrentUser,
+  scope: ViewScope,
+  units: Record<string, string>,
+): { options: Array<{ value: string | null; label: string }>; selected: string | null } {
+  const label = (id: string) => units[id] ?? UNIT_LABELS[id as keyof typeof UNIT_LABELS] ?? id;
+  if (viewer.isGroupAdmin) {
+    return {
+      options: [{ value: null, label: "All units" }, ...Object.keys(UNIT_LABELS).map((id) => ({ value: id, label: label(id) }))],
+      selected: scope.kind === "unit" ? scope.unitId : null,
+    };
+  }
+  return {
+    options: [
+      { value: null, label: `My group · ${label(viewer.unitId)}` },
+      { value: "overall", label: "Kausar Group (overall)" },
+    ],
+    selected: scope.kind === "overall" ? "overall" : null,
+  };
+}
+
+/**
+ * Everyone a scope covers, excluding the viewer. For "overall" this is the
+ * whole group — callers may only use it for totals (see ViewScope).
+ */
+export async function getScopeMembers(viewer: CurrentUser, scope: ViewScope): Promise<CurrentUser[]> {
+  if (scope.kind === "lineage" || scope.kind === "all") return getDownline(viewer);
+  const snap =
+    scope.kind === "unit"
+      ? await adminDb.collection("users").where("unitId", "==", scope.unitId).get()
+      : await adminDb.collection("users").get();
+  return snap.docs.map(toCurrentUser).filter((u) => u.uid !== viewer.uid);
+}
+
+/** Whether `target` is someone the viewer may open individually (report card, daie picker). */
+export function canViewDaie(viewer: CurrentUser, target: CurrentUser): boolean {
+  return (
+    viewer.uid === target.uid ||
+    viewer.isGroupAdmin ||
+    target.lineagePath.includes(viewer.uid) ||
+    (viewer.rank === "KDE" && target.unitId === viewer.unitId)
+  );
+}
+
 function emptySalesTotals(): SalesTotals {
   return {
     perancangan: 0,
@@ -358,7 +435,11 @@ export interface SalesSummary {
  * rather than being recomputed slightly differently per page.
  */
 export async function getSalesSummary(user: CurrentUser): Promise<SalesSummary> {
-  const downline = await getDownline(user);
+  return getSalesSummaryFor(user, await getDownline(user));
+}
+
+/** getSalesSummary over an explicit member list — e.g. a KDE's whole unit (see getScopeMembers) instead of their personal lineage. */
+export async function getSalesSummaryFor(user: CurrentUser, downline: CurrentUser[], includeSelfInGroup = true): Promise<SalesSummary> {
   const totalsByUid = await getSalesTotalsForUids([user.uid, ...downline.map((m) => m.uid)]);
   const personalTotals = totalsByUid.get(user.uid) ?? emptySalesTotals();
 
@@ -366,7 +447,8 @@ export async function getSalesSummary(user: CurrentUser): Promise<SalesSummary> 
     return { personalTotals, groupTotals: null, groupStatusCounts: null };
   }
 
-  const groupTotals = sumTotals([personalTotals, ...downline.map((m) => totalsByUid.get(m.uid) ?? emptySalesTotals())]);
+  const memberTotals = downline.map((m) => totalsByUid.get(m.uid) ?? emptySalesTotals());
+  const groupTotals = sumTotals(includeSelfInGroup ? [personalTotals, ...memberTotals] : memberTotals);
   const groupStatusCounts = {
     active: downline.filter(isActiveStatus).length,
     expired: downline.filter((m) => !isActiveStatus(m)).length,
@@ -375,7 +457,11 @@ export async function getSalesSummary(user: CurrentUser): Promise<SalesSummary> 
 }
 
 export async function getTeamWithTotals(user: CurrentUser): Promise<TeamMember[]> {
-  const downline = await getDownline(user);
+  return getTeamWithTotalsFor(await getDownline(user));
+}
+
+/** getTeamWithTotals over an explicit member list (see getScopeMembers). */
+export async function getTeamWithTotalsFor(downline: CurrentUser[]): Promise<TeamMember[]> {
   const totalsByUid = await getSalesTotalsForUids(downline.map((m) => m.uid));
   return downline.map((member) => {
     const t = totalsByUid.get(member.uid) ?? emptySalesTotals();
