@@ -13,7 +13,8 @@
 // date inside that actual month.
 //
 // Usage:
-//   node scripts/import-perancangan-monthly-production.mjs <path to service-account.json>
+//   node scripts/import-perancangan-monthly-production.mjs <path to service-account.json> [records.json]
+// records.json defaults to scripts/konvensyen_monthly_by_month.json.
 
 import { readFileSync } from "node:fs";
 import { initializeApp, cert } from "firebase-admin/app";
@@ -34,7 +35,7 @@ initializeApp({ credential: cert(serviceAccount), projectId: serviceAccount.proj
 const db = getFirestore();
 
 const SOURCE_TAG = "konvensyen-monthly-import";
-const records = JSON.parse(readFileSync("scripts/konvensyen_monthly_by_month.json", "utf8"));
+const records = JSON.parse(readFileSync(process.argv[3] ?? "scripts/konvensyen_monthly_by_month.json", "utf8"));
 console.log(`Loaded ${records.length} (daie, month) records.`);
 
 const existingSnap = await db.collection("sales").where("source", "==", SOURCE_TAG).get();
@@ -48,11 +49,20 @@ for (let i = 0; i < existingDocs.length; i += DELETE_BATCH) {
 }
 console.log("Deleted.");
 
-const usersSnap = await db.collection("users").get();
+const [usersSnap, rosterSnap] = await Promise.all([db.collection("users").get(), db.collection("roster").get()]);
 const uidByDaieId = new Map();
 usersSnap.forEach((doc) => {
   const daieId = doc.data().daieId;
   if (daieId) uidByDaieId.set(String(daieId), doc.id);
+});
+// Fallback: an account whose users.daieId isn't their Wasiyyah code (e.g. the
+// group admin's "KDE-0001", roster code 10363) is still linked from the
+// roster record via appAccountUid.
+const userUids = new Set(usersSnap.docs.map((d) => d.id));
+rosterSnap.forEach((doc) => {
+  const r = doc.data();
+  const k = String(r.daieId);
+  if (r.appAccountUid && userUids.has(r.appAccountUid) && !uidByDaieId.has(k)) uidByDaieId.set(k, r.appAccountUid);
 });
 console.log(`Production has ${uidByDaieId.size} promoted accounts with a daieId to match against.`);
 

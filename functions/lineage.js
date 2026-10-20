@@ -7,9 +7,14 @@
 // correcting an introducer — e.g. an admin discovers a daie was actually
 // brought in under Kausar Aspire, not Kausar Wealth — must also fix that
 // daie's own unitId and ripple it through their entire downline, not just
-// the lineage chain. A KDE has no uplineId and sits at the top of their own
-// unit, so a KDE's unitId is authoritative (set directly by the admin), not
-// derived.
+// the lineage chain. A KDE sits at the top of their own unit, so a KDE's
+// unitId is always authoritative (set directly by the admin), never derived —
+// even when the KDE has an uplineId. That happens with a confirmed
+// cross-unit sponsorship: Kausar Intisar's KDE was introduced by a Kausar
+// Wealth DPM, so she stays in his lineage (he still sees her as downline),
+// but she and her whole team remain Kausar Intisar. Deriving a KDE's unit
+// from their upline once silently re-filed that entire unit under Kausar
+// Wealth.
 //
 // Kept deliberately simple over clever (max 3 ranks deep in this org):
 // on every write to a user doc, recompute what lineagePath/unitId SHOULD be
@@ -41,13 +46,13 @@ export const recomputeLineageOnWrite = onDocumentWritten('users/{uid}', async (e
   const db = getFirestore();
 
   let correctLineage = [];
-  let correctUnitId = data.unitId; // KDE (no uplineId): unitId is authoritative, keep as-is.
+  let correctUnitId = data.unitId; // KDE: unitId is authoritative, keep as-is.
   if (data.uplineId) {
     const uplineSnap = await db.collection('users').doc(data.uplineId).get();
     if (uplineSnap.exists) {
       const uplineData = uplineSnap.data();
       correctLineage = [...(uplineData.lineagePath ?? []), data.uplineId];
-      correctUnitId = uplineData.unitId;
+      if (data.rank !== 'KDE') correctUnitId = uplineData.unitId;
     }
   }
 
@@ -64,12 +69,15 @@ export const recomputeLineageOnWrite = onDocumentWritten('users/{uid}', async (e
   );
 
   // Cascade to direct children — each of their writes retriggers this
-  // function, continuing the cascade further down the tree.
+  // function, continuing the cascade further down the tree. A KDE child
+  // keeps their own unit (see above), so only their lineage is pushed.
   const children = await db.collection('users').where('uplineId', '==', uid).get();
   await Promise.all(
     children.docs.map((childDoc) =>
       db.collection('users').doc(childDoc.id).set(
-        { lineagePath: [...correctLineage, uid], unitId: correctUnitId },
+        childDoc.data().rank === 'KDE'
+          ? { lineagePath: [...correctLineage, uid] }
+          : { lineagePath: [...correctLineage, uid], unitId: correctUnitId },
         { merge: true },
       ),
     ),

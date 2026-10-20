@@ -57,6 +57,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       region: data.region ?? "central",
       dateLicensed: data.dateLicensed ?? null,
       dateExpiry: data.dateExpiry ?? null,
+      recordOnly: data.recordOnly === true,
     } satisfies CurrentUser;
   } catch {
     return null;

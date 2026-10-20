@@ -52,6 +52,12 @@ export interface UserDoc {
    * renew, since dateLicensed keeps the ORIGINAL start date forever.
    */
   dateExpiry: string | null;
+  /**
+   * true for a profile that exists only so a daie's sales count toward their
+   * upline/unit/group totals (e.g. expired daie who still produced this FY,
+   * or a company code) — no Firebase Auth account, cannot log in.
+   */
+  recordOnly: boolean;
   createdAt?: unknown;
 }
 

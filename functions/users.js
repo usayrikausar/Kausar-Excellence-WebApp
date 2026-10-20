@@ -100,6 +100,9 @@ export const updateUser = onCall(async (request) => {
   const userRef = db.collection('users').doc(uid);
   const snap = await userRef.get();
   if (!snap.exists) throw new HttpsError('not-found', 'User not found.');
+  // Record-only profiles (daie with sales but no login, e.g. expired) have
+  // no Firebase Auth account, so there is nothing to disable or re-claim.
+  const hasLogin = snap.data().recordOnly !== true;
 
   const patch = {};
   if (rank !== undefined) {
@@ -147,14 +150,14 @@ export const updateUser = onCall(async (request) => {
     patch.subscriptionStatus = subscriptionStatus;
     // Actually block login, not just hide it in the UI — same convention as
     // beana-home-quran's setUserActive.
-    await auth.updateUser(uid, { disabled: subscriptionStatus === 'inactive' });
+    if (hasLogin) await auth.updateUser(uid, { disabled: subscriptionStatus === 'inactive' });
   }
 
   if (Object.keys(patch).length === 0) return { uid };
 
   await userRef.set(patch, { merge: true });
 
-  if (patch.rank !== undefined || patch.unitId !== undefined || patch.isGroupAdmin !== undefined) {
+  if (hasLogin && (patch.rank !== undefined || patch.unitId !== undefined || patch.isGroupAdmin !== undefined)) {
     const merged = { ...snap.data(), ...patch };
     await auth.setCustomUserClaims(uid, {
       rank: merged.rank,

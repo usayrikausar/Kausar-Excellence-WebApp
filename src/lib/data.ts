@@ -64,6 +64,7 @@ function toCurrentUser(doc: QueryDocumentSnapshot<DocumentData>): CurrentUser {
     region: data.region ?? "central",
     dateLicensed: data.dateLicensed ?? null,
     dateExpiry: data.dateExpiry ?? null,
+    recordOnly: data.recordOnly === true,
   };
 }
 
