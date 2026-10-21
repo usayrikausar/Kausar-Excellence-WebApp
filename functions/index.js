@@ -17,3 +17,4 @@ initializeApp();
 
 export { createUser, updateUser, setUserClaims } from './users.js';
 export { recomputeLineageOnWrite } from './lineage.js';
+export { stampSaleUnitOnCreate } from './sales.js';

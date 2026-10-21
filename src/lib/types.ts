@@ -82,6 +82,12 @@ export interface SaleDoc {
   createdAt: unknown;
   /** Set when this sale closed out a pipeline prospect (see ProspectDoc) — optional, entries can still be logged standalone. */
   prospectId?: string | null;
+  /**
+   * The unit this sale counts toward: the daie's unit when the sale happened
+   * (stamped by functions/sales.js; the Konvensyen sheet tab for imports).
+   * Missing on older entries, which fall back to the daie's current unit.
+   */
+  unitId?: string;
 }
 
 /**

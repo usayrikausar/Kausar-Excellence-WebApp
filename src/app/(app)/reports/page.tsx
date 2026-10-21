@@ -11,7 +11,10 @@ import {
   resolveViewScope,
   scopeOptions,
   getScopeMembers,
+  getUnitSalesTotals,
+  getSaleEntriesForUnit,
 } from "@/lib/data";
+import { UNIT_LABELS } from "@/lib/constants";
 import { unitLabel } from "@/lib/constants";
 import { currentMonthKey, type MonthKey } from "@/lib/scoring";
 import { KpiTile } from "@/components/daie/kpi-tile";
@@ -53,16 +56,39 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   // A Group Admin viewing a unit that isn't their own shouldn't have their
   // personal production folded into that unit's group total.
   const includeSelf = scope.kind !== "unit" || scope.unitId === user.unitId;
-  const [{ personalTotals, groupTotals, groupStatusCounts }, team] = await Promise.all([
+  const [summary, team, unitTotals] = await Promise.all([
     getSalesSummaryFor(user, members, includeSelf),
     getTeamWithTotalsFor(members),
+    scope.kind === "lineage" ? Promise.resolve(null) : getUnitSalesTotals(),
   ]);
+  const { personalTotals, groupStatusCounts } = summary;
+  // Unit-level totals count each sale toward the unit the daie belonged to
+  // when it happened (the Konvensyen sheet's rule), not where they sit today.
+  const groupTotals = scope.kind === "unit" && unitTotals ? (unitTotals.get(scope.unitId) ?? summary.groupTotals) : summary.groupTotals;
+  const everyone = [user, ...members];
+  const unitRows = unitTotals
+    ? Object.keys(UNIT_LABELS).map((unitId) => {
+        const t = unitTotals.get(unitId);
+        return {
+          unitId,
+          salesTotal: t?.perancangan ?? 0,
+          wasitahTotal: (t?.pengurusanBerlian ?? 0) + (t?.pengurusanMutiara ?? 0),
+          pusakaTotal: (t?.kesPusakaBesar ?? 0) + (t?.kesPusakaKecil ?? 0),
+          collectionTotal: t?.collectionTotal ?? 0,
+          count: everyone.filter((m) => m.unitId === unitId).length,
+        };
+      })
+    : null;
   const groupLabel =
     scope.kind === "overall" ? "Kausar Group (overall)" : scope.kind === "unit" ? `${unitLabel(scope.unitId, units)} total` : undefined;
 
   const [personalEntries, groupEntries] = await Promise.all([
     getSaleEntriesForUids([user.uid]),
-    team.length > 0 && !totalsOnly ? getSaleEntriesForUids([...(includeSelf ? [user.uid] : []), ...team.map((m) => m.uid)]) : Promise.resolve([]),
+    scope.kind === "unit"
+      ? getSaleEntriesForUnit(scope.unitId)
+      : team.length > 0 && !totalsOnly
+        ? getSaleEntriesForUids([...(includeSelf ? [user.uid] : []), ...team.map((m) => m.uid)])
+        : Promise.resolve([]),
   ]);
 
   const scoresByUid = totalsOnly ? null : await getMonthlyScoresForUids(team.map((m) => m.uid), monthKey);
@@ -110,7 +136,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         </div>
       </div>
       <SalesComparison personalTotals={personalTotals} groupTotals={groupTotals} groupStatusCounts={groupStatusCounts} groupLabel={groupLabel} />
-      <UnitProductionTable team={team} units={units} />
+      {unitRows && (scope.kind === "all" || scope.kind === "overall") ? (
+        <UnitProductionTable rows={unitRows} units={units} />
+      ) : (
+        <UnitProductionTable team={team} units={units} />
+      )}
 
       <PersonalProductionReport entries={personalEntries} title="My Production" />
       {!totalsOnly && team.length > 0 && (

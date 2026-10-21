@@ -377,49 +377,95 @@ export interface UnitMonthSales {
   pusaka: number;
 }
 
-const GROUP_SALES_CACHE_MS = 5 * 60 * 1000;
-let groupSalesCache: { key: string; at: number; rows: UnitMonthSales[] } | null = null;
+const UNIT_SALES_CACHE_MS = 5 * 60 * 1000;
+
+/** One sale with the unit it counts toward (see loadSalesWithUnit). */
+interface UnitSale extends SaleEntry {
+  unitId: string;
+}
+interface CollectionWithUnit {
+  uid: string;
+  unitId: string;
+  amountCollected: number;
+}
+let unitSalesCache: { at: number; sales: UnitSale[]; collections: CollectionWithUnit[] } | null = null;
 
 /**
- * Whole-Kausar-Group production by month × unit since `fromMonth`, for the
- * Group Admin / KDE dashboard on Home. A sale counts toward the unit its
- * daie is filed under today (users.unitId), same as Reports' unit table.
+ * Every sale and collection in the group, each tagged with the unit it counts
+ * toward. A sale counts toward the unit its daie belonged to WHEN IT
+ * HAPPENED (sales/{id}.unitId — the Konvensyen sheet tab for imported sales,
+ * stamped at entry by functions/sales.js for app entries), so a daie who was
+ * under Kausar Wealth before Kausar Nusrah/Intisar split off keeps those
+ * earlier sales in Kausar Wealth's totals, matching the sheet. Sales without
+ * a stamp (and collections, which have none) fall back to the daie's unit
+ * today. Personal and lineage totals are unaffected — this only drives
+ * unit-level figures.
  *
- * Reads every sale in the period, so the result is kept in memory for a few
- * minutes (the page server keeps one warm instance — see
- * scripts/ensure-min-instances.mjs) instead of re-reading on every Home load.
+ * Kept in memory for a few minutes (the page server keeps one warm instance —
+ * see scripts/ensure-min-instances.mjs) instead of re-reading on every load.
  */
-export async function getGroupSalesByMonth(fromMonth: MonthKey): Promise<UnitMonthSales[]> {
-  if (groupSalesCache && groupSalesCache.key === fromMonth && Date.now() - groupSalesCache.at < GROUP_SALES_CACHE_MS) {
-    return groupSalesCache.rows;
-  }
-  const [salesSnap, usersSnap] = await Promise.all([
-    adminDb
-      .collection("sales")
-      .where("date", ">=", new Date(`${fromMonth}-01T00:00:00.000Z`))
-      .select("uid", "category", "subCategory", "amount", "count", "date")
-      .get(),
+async function loadSalesWithUnit(): Promise<{ sales: UnitSale[]; collections: CollectionWithUnit[] }> {
+  if (unitSalesCache && Date.now() - unitSalesCache.at < UNIT_SALES_CACHE_MS) return unitSalesCache;
+  const [salesSnap, collectionsSnap, usersSnap] = await Promise.all([
+    adminDb.collection("sales").select("uid", "unitId", "category", "subCategory", "amount", "count", "date").get(),
+    adminDb.collection("collections").select("uid", "amountCollected").get(),
     adminDb.collection("users").select("unitId").get(),
   ]);
   const unitByUid = new Map(usersSnap.docs.map((d) => [d.id, d.get("unitId") as string]));
-
-  const byKey = new Map<string, UnitMonthSales>();
+  const sales: UnitSale[] = [];
   salesSnap.forEach((doc) => {
-    const sale = doc.data() as SaleDoc;
-    const unitId = unitByUid.get(sale.uid);
+    const data = doc.data() as SaleDoc;
+    const unitId = data.unitId ?? unitByUid.get(data.uid);
     if (!unitId) return;
-    const monthKey = (sale.date as unknown as { toDate: () => Date }).toDate().toISOString().slice(0, 7);
-    const key = `${monthKey}|${unitId}`;
-    const row = byKey.get(key) ?? { monthKey, unitId, perancangan: 0, pengurusan: 0, pusaka: 0 };
+    sales.push({ ...toSaleEntry(doc), unitId });
+  });
+  const collections: CollectionWithUnit[] = [];
+  collectionsSnap.forEach((doc) => {
+    const data = doc.data() as CollectionDoc;
+    const unitId = unitByUid.get(data.uid);
+    if (unitId) collections.push({ uid: data.uid, unitId, amountCollected: data.amountCollected ?? 0 });
+  });
+  unitSalesCache = { at: Date.now(), sales, collections };
+  return unitSalesCache;
+}
+
+/**
+ * Whole-Kausar-Group production by month × unit since `fromMonth`, for the
+ * Group Admin / KDE dashboard on Home and the Overall unit tables.
+ */
+export async function getGroupSalesByMonth(fromMonth: MonthKey): Promise<UnitMonthSales[]> {
+  const { sales } = await loadSalesWithUnit();
+  const byKey = new Map<string, UnitMonthSales>();
+  for (const sale of sales) {
+    const monthKey = sale.date.slice(0, 7);
+    if (monthKey < fromMonth) continue;
+    const key = `${monthKey}|${sale.unitId}`;
+    const row = byKey.get(key) ?? { monthKey, unitId: sale.unitId, perancangan: 0, pengurusan: 0, pusaka: 0 };
     if (sale.category === "perancangan") row.perancangan += sale.amount ?? 0;
     else if (sale.category === "pengurusan") row.pengurusan += sale.count ?? 0;
     else if (sale.category === "kesPusaka") row.pusaka += sale.amount ?? 0;
     byKey.set(key, row);
-  });
+  }
+  return [...byKey.values()];
+}
 
-  const rows = [...byKey.values()];
-  groupSalesCache = { key: fromMonth, at: Date.now(), rows };
-  return rows;
+/** Career-to-date totals per unit, by when each sale happened (see loadSalesWithUnit). */
+export async function getUnitSalesTotals(): Promise<Map<string, SalesTotals>> {
+  const { sales, collections } = await loadSalesWithUnit();
+  const totals = new Map<string, SalesTotals>();
+  const get = (unitId: string) => {
+    if (!totals.has(unitId)) totals.set(unitId, emptySalesTotals());
+    return totals.get(unitId)!;
+  };
+  for (const sale of sales) applySaleToTotals(get(sale.unitId), sale as unknown as SaleDoc);
+  for (const c of collections) get(c.unitId).collectionTotal += c.amountCollected;
+  return totals;
+}
+
+/** Every sale entry that counts toward one unit (by when it happened) — for a unit's month-by-month production report. */
+export async function getSaleEntriesForUnit(unitId: string): Promise<SaleEntry[]> {
+  const { sales } = await loadSalesWithUnit();
+  return sales.filter((s) => s.unitId === unitId).map(({ unitId: _unitId, ...entry }) => entry);
 }
 
 export interface SalesSummary {

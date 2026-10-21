@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { unitLabel } from "@/lib/constants";
 import { formatRM } from "@/lib/utils";
 
-interface UnitRow {
+export interface UnitRow {
   unitId: string;
   salesTotal: number;
   collectionTotal: number;
@@ -21,13 +21,17 @@ interface UnitRow {
  */
 export function UnitProductionTable({
   team,
+  rows: unitRows,
   units,
 }: {
-  team: Array<{ unitId: string; salesTotal: number; collectionTotal: number; wasitahTotal: number; pusakaTotal: number }>;
+  team?: Array<{ unitId: string; salesTotal: number; collectionTotal: number; wasitahTotal: number; pusakaTotal: number }>;
+  /** Ready-made per-unit totals (counted by when each sale happened — see lib/data.ts getUnitSalesTotals); used instead of summing `team` by current unit. */
+  rows?: UnitRow[];
   units: Record<string, string>;
 }) {
   const byUnit = new Map<string, UnitRow>();
-  for (const member of team) {
+  for (const r of unitRows ?? []) byUnit.set(r.unitId, r);
+  for (const member of unitRows ? [] : (team ?? [])) {
     const row = byUnit.get(member.unitId) ?? { unitId: member.unitId, salesTotal: 0, collectionTotal: 0, wasitahTotal: 0, pusakaTotal: 0, count: 0 };
     row.salesTotal += member.salesTotal;
     row.collectionTotal += member.collectionTotal;

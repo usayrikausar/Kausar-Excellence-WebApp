@@ -99,6 +99,9 @@ for (let i = 0; i < toWrite.length; i += BATCH_SIZE) {
       source: SOURCE_TAG,
       sourceDaieId: String(r.daieId),
       sourceMonth: r.monthKey,
+      // The sheet tab this amount came from = the unit the daie was under
+      // when the sale happened (unit totals follow it — see lib/data.ts).
+      ...(r.unit ? { unitId: r.unit } : {}),
     });
     written++;
   }
