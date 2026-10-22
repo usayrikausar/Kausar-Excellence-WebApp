@@ -58,6 +58,13 @@ export interface UserDoc {
    * or a company code) — no Firebase Auth account, cannot log in.
    */
   recordOnly: boolean;
+  /**
+   * Office staff (e.g. HQ admins) — an account for using the app, not a daie:
+   * no Kod, no sales, no place in the hierarchy. Left out of every daie list,
+   * head count and report (getDownline / getScopeMembers); still listed on
+   * the Admin page so they can be managed.
+   */
+  isStaff: boolean;
   createdAt?: unknown;
 }
 

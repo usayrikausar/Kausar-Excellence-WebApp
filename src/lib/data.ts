@@ -65,6 +65,7 @@ function toCurrentUser(doc: QueryDocumentSnapshot<DocumentData>): CurrentUser {
     dateLicensed: data.dateLicensed ?? null,
     dateExpiry: data.dateExpiry ?? null,
     recordOnly: data.recordOnly === true,
+    isStaff: data.isStaff === true,
   };
 }
 
@@ -127,7 +128,7 @@ export async function getDownline(user: CurrentUser): Promise<CurrentUser[]> {
     : adminDb.collection("users").where("lineagePath", "array-contains", user.uid);
 
   const snap = await query.get();
-  return snap.docs.map(toCurrentUser).filter((u) => u.uid !== user.uid);
+  return snap.docs.map(toCurrentUser).filter((u) => u.uid !== user.uid && !u.isStaff);
 }
 
 /**
@@ -205,7 +206,7 @@ export async function getScopeMembers(viewer: CurrentUser, scope: ViewScope): Pr
     scope.kind === "unit"
       ? await adminDb.collection("users").where("unitId", "==", scope.unitId).get()
       : await adminDb.collection("users").get();
-  return snap.docs.map(toCurrentUser).filter((u) => u.uid !== viewer.uid);
+  return snap.docs.map(toCurrentUser).filter((u) => u.uid !== viewer.uid && !u.isStaff);
 }
 
 /** Whether `target` is someone the viewer may open individually (report card, daie picker). */

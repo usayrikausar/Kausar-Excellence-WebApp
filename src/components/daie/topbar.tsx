@@ -7,7 +7,7 @@ import { UNIT_LABELS } from "@/lib/constants";
 import type { CurrentUser, UnitId } from "@/lib/types";
 
 export function Topbar({ user, menuOpen, onMenuToggle }: { user: CurrentUser; menuOpen: boolean; onMenuToggle: () => void }) {
-  const unitLabel = UNIT_LABELS[user.unitId as UnitId] ?? user.unitId;
+  const unitLabel = user.isStaff ? "Kausar Group HQ" : (UNIT_LABELS[user.unitId as UnitId] ?? user.unitId);
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-primary px-4 text-white sm:px-6 print:hidden">
@@ -25,16 +25,20 @@ export function Topbar({ user, menuOpen, onMenuToggle }: { user: CurrentUser; me
         <div className="flex min-w-0 flex-col leading-tight">
           <span className="truncate text-sm font-semibold">{user.name}</span>
           <span className="truncate text-xs text-white/70">
-            {user.daieId} · {unitLabel}
+            {user.isStaff ? "Staff" : user.daieId} · {unitLabel}
           </span>
         </div>
         {user.isGroupAdmin && <Badge variant="accent" className="hidden sm:inline-flex">Group Admin</Badge>}
-        <Badge variant="outline" className="hidden border-white/30 text-white sm:inline-flex">
-          {user.rank}
-        </Badge>
-        <Badge variant="muted" className="hidden bg-white/10 text-white sm:inline-flex">
-          {user.structureType}
-        </Badge>
+        {!user.isStaff && (
+          <>
+            <Badge variant="outline" className="hidden border-white/30 text-white sm:inline-flex">
+              {user.rank}
+            </Badge>
+            <Badge variant="muted" className="hidden bg-white/10 text-white sm:inline-flex">
+              {user.structureType}
+            </Badge>
+          </>
+        )}
       </div>
       <LogoutButton />
     </header>

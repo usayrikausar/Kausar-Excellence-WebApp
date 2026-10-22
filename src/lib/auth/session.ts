@@ -70,6 +70,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       dateLicensed: data.dateLicensed ?? null,
       dateExpiry: data.dateExpiry ?? null,
       recordOnly: data.recordOnly === true,
+      isStaff: data.isStaff === true,
     } satisfies CurrentUser;
   } catch {
     return null;

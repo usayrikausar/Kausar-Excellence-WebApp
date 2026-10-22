@@ -145,6 +145,9 @@ export function UserTable({ users, units, allUsers }: { users: CurrentUser[]; un
                     {user.isGroupAdmin && (
                       <Badge variant="accent" className="ml-2">Group Admin</Badge>
                     )}
+                    {user.isStaff && (
+                      <Badge variant="outline" className="ml-2">Staff — not a daie</Badge>
+                    )}
                     {user.recordOnly && (
                       <Badge variant="outline" className="ml-2">No login of its own</Badge>
                     )}
