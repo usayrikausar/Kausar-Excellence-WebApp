@@ -42,13 +42,13 @@ export function ExpiryRemindersCard({ self, downline }: { self: CurrentUser; dow
 
         {downlineDueCount > 0 && (
           <p className="text-sm text-ink">
-            <span className="font-semibold">{downlineDueCount}</span> team member{downlineDueCount === 1 ? "" : "s"} in your downline
+            <span className="font-semibold">{downlineDueCount}</span> {downlineDueCount === 1 ? "person" : "people"} in your team
             {downlineDueCount === 1 ? " has" : " have"} a contract expiring within 6 months.
           </p>
         )}
 
-        <Link href="/team" className="inline-block text-sm font-semibold text-primary hover:underline">
-          {downlineDueCount > 0 ? "View details on My Team" : "View My Team"}
+        <Link href={downlineDueCount > 0 ? "/team?status=expiring6" : "/team"} className="inline-block text-sm font-semibold text-primary hover:underline">
+          {downlineDueCount > 0 ? "See who on My Team" : "View My Team"}
         </Link>
       </CardContent>
     </Card>

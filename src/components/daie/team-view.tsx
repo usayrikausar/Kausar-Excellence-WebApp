@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { TeamTree } from "@/components/daie/team-tree";
-import { TeamTable } from "@/components/daie/team-table";
+import { TeamTable, type TeamStatusFilter } from "@/components/daie/team-table";
 import { cn } from "@/lib/utils";
 import type { CurrentUser } from "@/lib/types";
 
@@ -22,8 +22,11 @@ export function TeamView(props: {
   outsideNames?: Record<string, string>;
   showUnit: boolean;
   units: Record<string, string>;
+  /** Open in List view with this status filter (the tree can't filter) — e.g. from Home's renewal reminder. */
+  initialStatus?: TeamStatusFilter;
 }) {
-  const [view, setView] = useState<"tree" | "list">("tree");
+  const { initialStatus, ...treeProps } = props;
+  const [view, setView] = useState<"tree" | "list">(initialStatus && initialStatus !== "all" ? "list" : "tree");
 
   return (
     <div>
@@ -35,7 +38,7 @@ export function TeamView(props: {
           List view
         </Button>
       </div>
-      {view === "tree" ? <TeamTree {...props} /> : <TeamTable {...props} />}
+      {view === "tree" ? <TeamTree {...treeProps} /> : <TeamTable {...treeProps} initialStatus={initialStatus} />}
     </div>
   );
 }

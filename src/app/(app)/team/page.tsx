@@ -18,9 +18,13 @@ import { KpiTile } from "@/components/daie/kpi-tile";
 import { TeamView } from "@/components/daie/team-view";
 import { ScopeSwitcher } from "@/components/daie/scope-switcher";
 
-export default async function TeamPage({ searchParams }: { searchParams: Promise<{ scope?: string }> }) {
+const STATUS_FILTERS = ["all", "active", "expired", "expiring6", "expiring3"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
+
+export default async function TeamPage({ searchParams }: { searchParams: Promise<{ scope?: string; status?: string }> }) {
   const user = await requireDaie();
-  const { scope: scopeParamValue } = await searchParams;
+  const { scope: scopeParamValue, status: statusParam } = await searchParams;
+  const initialStatus: StatusFilter = STATUS_FILTERS.includes(statusParam as StatusFilter) ? (statusParam as StatusFilter) : "all";
   const scope = resolveViewScope(user, scopeParamValue);
   const [members, units] = await Promise.all([getScopeMembers(user, scope), getUnits()]);
 
@@ -114,6 +118,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
             outsideNames={outsideNames}
             showUnit={scope.kind === "all"}
             units={units}
+            initialStatus={initialStatus}
           />
         </CardContent>
       </Card>

@@ -14,6 +14,7 @@ import {
   canSwitchScope,
   resolveViewScope,
   scopeOptions,
+  getScopeMembers,
 } from "@/lib/data";
 import { ScopeSwitcher } from "@/components/daie/scope-switcher";
 import { GroupSalesDashboard } from "@/components/daie/group-sales-dashboard";
@@ -64,6 +65,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     showGroupDashboard ? getUnits() : Promise.resolve(null),
   ]);
 
+  // Renewal reminder counts the same people My Team opens with: a KDE's whole
+  // unit ("My group"), everyone else's own downline.
+  const reminderMembers = user.rank === "KDE" && !user.isGroupAdmin ? await getScopeMembers(user, resolveViewScope(user, undefined)) : downline;
+
   const personalSalesTotal = totals.perancangan + totals.kesPusakaBesar + totals.kesPusakaKecil;
   const activeCount = downline.filter(isActiveStatus).length;
   const expiredCount = downline.length - activeCount;
@@ -101,7 +106,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
       )}
 
-      <ExpiryRemindersCard self={user} downline={downline} />
+      <ExpiryRemindersCard self={user} downline={reminderMembers} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiTile label="My sales total" value={formatRM(personalSalesTotal)} icon={BadgeDollarSign} accent="primary" />

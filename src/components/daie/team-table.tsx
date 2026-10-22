@@ -9,7 +9,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PaginationFooter } from "@/components/ui/pagination-footer";
 import { unitLabel, REGION_LABELS } from "@/lib/constants";
 import type { CurrentUser } from "@/lib/types";
-import { contractExpiryDate, daysUntilExpiry, isExpiryReminderDue, formatDate, formatRM, isActiveStatus } from "@/lib/utils";
+import { contractExpiryDate, daysUntilExpiry, isExpiryReminderDue, formatDate, formatRM, isActiveStatus, EXPIRY_REMINDER_URGENT_DAYS } from "@/lib/utils";
+
+/** Status filter — "expiring6"/"expiring3" match the Home renewal reminder (6 and 3 months out). */
+export type TeamStatusFilter = "all" | "active" | "expired" | "expiring6" | "expiring3";
+export const TEAM_STATUS_FILTERS: TeamStatusFilter[] = ["all", "active", "expired", "expiring6", "expiring3"];
+const STATUS_FILTER_LABELS: Record<TeamStatusFilter, string> = {
+  all: "All",
+  active: "Active",
+  expired: "Expired",
+  expiring6: "Expiring within 6 months",
+  expiring3: "Expiring within 3 months",
+};
+function matchesStatus(member: CurrentUser, filter: TeamStatusFilter): boolean {
+  switch (filter) {
+    case "all":
+      return true;
+    case "active":
+      return isActiveStatus(member);
+    case "expired":
+      return !isActiveStatus(member);
+    case "expiring6":
+      return isExpiryReminderDue(member);
+    case "expiring3":
+      return isExpiryReminderDue(member) && (daysUntilExpiry(member) ?? Infinity) <= EXPIRY_REMINDER_URGENT_DAYS;
+  }
+}
 
 type TeamMember = CurrentUser & {
   salesTotal: number;
@@ -60,16 +85,21 @@ export function TeamTable({
   outsideNames,
   showUnit,
   units,
+  initialStatus = "all",
 }: {
   team: TeamMember[];
   rootUid: string | null;
+  /** Status filter to open with — e.g. "expiring6" when arriving from Home's renewal reminder. */
+  initialStatus?: TeamStatusFilter;
   /** Names for uplines who aren't in `team` themselves (e.g. a unit's KDE whose introducer sits in another unit). */
   outsideNames?: Record<string, string>;
   viewerName: string;
   showUnit: boolean;
   units: Record<string, string>;
 }) {
-  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [status, setStatus] = useState<TeamStatusFilter>(initialStatus);
+  // Arriving for expiring contracts, soonest expiry first is the useful order.
+  const [sortKey, setSortKey] = useState<SortKey>(initialStatus.startsWith("expiring") ? "expiry" : "name");
   const [direction, setDirection] = useState<"asc" | "desc">("asc");
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(1);
@@ -96,8 +126,13 @@ export function TeamTable({
     setPage(1);
   }
 
+  const statusCounts = useMemo(
+    () => Object.fromEntries(TEAM_STATUS_FILTERS.map((f) => [f, team.filter((m) => matchesStatus(m, f)).length])) as Record<TeamStatusFilter, number>,
+    [team],
+  );
+
   const sorted = useMemo(() => {
-    const copy = [...team];
+    const copy = team.filter((m) => matchesStatus(m, status));
     copy.sort((a, b) => {
       const av = sortValue(a, sortKey);
       const bv = sortValue(b, sortKey);
@@ -105,7 +140,7 @@ export function TeamTable({
       return direction === "asc" ? cmp : -cmp;
     });
     return copy;
-  }, [team, sortKey, direction]);
+  }, [team, status, sortKey, direction]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const clampedPage = Math.min(page, totalPages);
@@ -117,10 +152,32 @@ export function TeamTable({
 
   return (
     <div>
-      <div className="flex items-center justify-between border-b border-border p-3 text-sm">
-        <span className="text-muted-foreground">
-          Showing {(clampedPage - 1) * pageSize + 1}–{Math.min(clampedPage * pageSize, sorted.length)} of {sorted.length}
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-3 text-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-muted-foreground">Status</span>
+          <Select
+            value={status}
+            onValueChange={(v) => {
+              const next = v as TeamStatusFilter;
+              setStatus(next);
+              if (next.startsWith("expiring")) {
+                setSortKey("expiry");
+                setDirection("asc");
+              }
+              setPage(1);
+            }}
+          >
+            <SelectTrigger id="team-status-filter" className="h-8 w-60" aria-label="Filter by status"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {TEAM_STATUS_FILTERS.map((f) => (
+                <SelectItem key={f} value={f}>{STATUS_FILTER_LABELS[f]} ({statusCounts[f]})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-muted-foreground">
+            {sorted.length === 0 ? "No one matches" : `Showing ${(clampedPage - 1) * pageSize + 1}–${Math.min(clampedPage * pageSize, sorted.length)} of ${sorted.length}`}
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground">Rows per page</span>
           <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
