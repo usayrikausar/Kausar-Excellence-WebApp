@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "@/lib/firebase/client";
+import { db } from "@/lib/firebase/client";
+import { uploadImage } from "@/lib/upload-image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ export function CreateContestForm({ createdBy }: { createdBy: string }) {
   const [targets, setTargets] = useState<ContestTarget[]>([{ label: "", amount: 0 }]);
   const [rewardDescription, setRewardDescription] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [errorDetail, setErrorDetail] = useState("");
   const [open, setOpen] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -32,9 +33,7 @@ export function CreateContestForm({ createdBy }: { createdBy: string }) {
     try {
       let posterUrl: string | null = null;
       if (poster) {
-        const storageRef = ref(storage, `contests/${Date.now()}-${poster.name}`);
-        await uploadBytes(storageRef, poster);
-        posterUrl = await getDownloadURL(storageRef);
+        posterUrl = await uploadImage("contests", poster);
       }
 
       await addDoc(collection(db, "contests"), {
@@ -60,7 +59,9 @@ export function CreateContestForm({ createdBy }: { createdBy: string }) {
       setOpen(false);
       router.refresh();
       setStatus("idle");
-    } catch {
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      setErrorDetail(code ? `(${code})` : err instanceof Error ? err.message : "");
       setStatus("error");
     }
   }
@@ -139,7 +140,7 @@ export function CreateContestForm({ createdBy }: { createdBy: string }) {
             />
           </div>
 
-          {status === "error" && <p className="text-sm font-medium text-red-600">Could not create contest. Please try again.</p>}
+          {status === "error" && <p className="text-sm font-medium text-red-600">Could not create contest. {errorDetail || "Please try again."}</p>}
 
           <div className="flex gap-2">
             <Button type="submit" disabled={status === "saving"}>

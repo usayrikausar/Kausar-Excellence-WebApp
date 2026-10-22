@@ -14,6 +14,7 @@ import "server-only";
 import { getApps, initializeApp, cert, applicationDefault, type App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 function getAdminApp(): App {
   if (getApps().length) return getApps()[0];
@@ -47,6 +48,10 @@ const app = getAdminApp();
 
 export const adminAuth = getAuth(app);
 export const adminDb = getFirestore(app);
+/** The project's default Firebase Storage bucket (same name the client config uses). */
+export const adminBucket = getStorage(app).bucket(
+  process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? process.env.GCLOUD_PROJECT}.firebasestorage.app`,
+);
 
 // Re-exported only so a future real deployment can swap in a service-account
 // cert without touching call sites.

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "@/lib/firebase/client";
+import { db } from "@/lib/firebase/client";
+import { uploadImage } from "@/lib/upload-image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,9 +25,7 @@ export function BulletinForm({ createdBy }: { createdBy: string }) {
     try {
       let imageUrl: string | null = null;
       if (image) {
-        const storageRef = ref(storage, `bulletins/${Date.now()}-${image.name}`);
-        await uploadBytes(storageRef, image);
-        imageUrl = await getDownloadURL(storageRef);
+        imageUrl = await uploadImage("bulletins", image);
       }
 
       await addDoc(collection(db, "bulletins"), {
@@ -40,9 +38,12 @@ export function BulletinForm({ createdBy }: { createdBy: string }) {
 
       router.push("/bulletin");
       router.refresh();
-    } catch {
+    } catch (err) {
       setStatus("error");
-      setError("Could not publish. Please try again.");
+      // Say why (upload errors are written for the user; Firestore errors carry a code).
+      const code = (err as { code?: string }).code;
+      const message = err instanceof Error ? err.message : "";
+      setError(code ? `Could not publish (${code}). Please try again.` : `Could not publish. ${message || "Please try again."}`);
     }
   }
 
