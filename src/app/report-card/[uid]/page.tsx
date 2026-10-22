@@ -5,6 +5,8 @@ import {
   getMonthlyScoreForUid,
   getSaleEntriesForUids,
   getCollectionEntriesForUid,
+  getCollectionEntriesForUids,
+  getDownline,
   getGoal,
   getContests,
   getContestProgressForUids,
@@ -163,6 +165,20 @@ export default async function ReportCardPage({
 
   const monthCollection = collectionEntries.filter((e) => e.date.slice(0, 7) === monthKey).reduce((s, e) => s + e.amountCollected, 0);
 
+  // Group = this daie + their whole downline, for the SAME month as the
+  // personal figures above (career-to-date stays alongside for reference).
+  const downline = salesSummary.groupTotals ? await getDownline(target) : [];
+  const groupUids = [uid, ...downline.map((m) => m.uid)];
+  const [groupSaleEntries, groupCollectionEntries] = downline.length
+    ? await Promise.all([getSaleEntriesForUids(groupUids), getCollectionEntriesForUids(groupUids)])
+    : [[], []];
+  const groupMonth = groupSaleEntries.filter((e) => e.date.slice(0, 7) === monthKey);
+  const sumAmount = (list: typeof groupMonth, cat: string, sub?: string) =>
+    list.filter((e) => e.category === cat && (!sub || e.subCategory === sub)).reduce((s, e) => s + (e.amount ?? 0), 0);
+  const sumCount = (list: typeof groupMonth, sub: string) =>
+    list.filter((e) => e.category === "pengurusan" && e.subCategory === sub).reduce((s, e) => s + (e.count ?? 0), 0);
+  const groupMonthCollection = groupCollectionEntries.filter((e) => e.date.slice(0, 7) === monthKey).reduce((s, e) => s + e.amountCollected, 0);
+
   const trend = last3.map((mk) => ({
     monthKey: mk,
     total: saleEntries
@@ -313,25 +329,40 @@ export default async function ReportCardPage({
 
         {salesSummary.groupTotals && (
           <div className="border-b border-border px-9 py-5 print:break-inside-avoid print:break-before-page">
-            <SectionTitle hint={`All-time · ${salesSummary.groupStatusCounts?.active ?? 0} active downline`}>Group production</SectionTitle>
+            <SectionTitle hint={`${monthLabel(monthKey)} · ${salesSummary.groupStatusCounts?.active ?? 0} active downline`}>Personal &amp; group production</SectionTitle>
             <table className="w-full border-collapse text-[12.5px]">
               <thead>
                 <tr>
                   <th className="border-b border-border px-2.5 pb-2 text-left text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Category</th>
-                  <th className="border-b border-border px-2.5 pb-2 text-right text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Personal</th>
-                  <th className="border-b border-border px-2.5 pb-2 text-right text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Total group (incl. personal)</th>
+                  <th className="border-b border-border px-2.5 pb-2 text-right text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Personal · this period</th>
+                  <th className="border-b border-border px-2.5 pb-2 text-right text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Group · this period</th>
+                  <th className="border-b border-border px-2.5 pb-2 text-right text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Group · career to date</th>
                 </tr>
               </thead>
               <tbody>
-                <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.perancangan)}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.perancangan)}</td></tr>
-                <tr><td className="border-b border-border px-2.5 py-2 text-ink">Wasitah — Berlian</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.personalTotals.pengurusanBerlian}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.groupTotals.pengurusanBerlian}</td></tr>
-                <tr><td className="border-b border-border px-2.5 py-2 text-ink">Wasitah — Mutiara</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.personalTotals.pengurusanMutiara}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{salesSummary.groupTotals.pengurusanMutiara}</td></tr>
-                <tr><td className="border-b border-border px-2.5 py-2 text-ink">Pusaka — Besar</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.kesPusakaBesar)}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.kesPusakaBesar)}</td></tr>
-                <tr><td className="border-b border-border px-2.5 py-2 text-ink">Pusaka — Kecil</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.kesPusakaKecil)}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.kesPusakaKecil)}</td></tr>
-                <tr className="bg-muted font-bold"><td className="px-2.5 py-2 text-ink">Collection</td><td className="px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.personalTotals.collectionTotal)}</td><td className="px-2.5 py-2 text-right text-ink">{formatRM(salesSummary.groupTotals.collectionTotal)}</td></tr>
+                {[
+                  { label: "Perancangan", p: formatRM(perancangan), g: formatRM(sumAmount(groupMonth, "perancangan")), c: formatRM(salesSummary.groupTotals.perancangan) },
+                  { label: "Wasitah — Berlian", p: String(berlianCount), g: String(sumCount(groupMonth, "berlian")), c: String(salesSummary.groupTotals.pengurusanBerlian) },
+                  { label: "Wasitah — Mutiara", p: String(mutiaraCount), g: String(sumCount(groupMonth, "mutiara")), c: String(salesSummary.groupTotals.pengurusanMutiara) },
+                  { label: "Pusaka — Besar", p: formatRM(pusakaBesar), g: formatRM(sumAmount(groupMonth, "kesPusaka", "besar")), c: formatRM(salesSummary.groupTotals.kesPusakaBesar) },
+                  { label: "Pusaka — Kecil", p: formatRM(pusakaKecil), g: formatRM(sumAmount(groupMonth, "kesPusaka", "kecil")), c: formatRM(salesSummary.groupTotals.kesPusakaKecil) },
+                ].map((r) => (
+                  <tr key={r.label}>
+                    <td className="border-b border-border px-2.5 py-2 text-ink">{r.label}</td>
+                    <td className="border-b border-border px-2.5 py-2 text-right text-ink">{r.p}</td>
+                    <td className="border-b border-border px-2.5 py-2 text-right text-ink">{r.g}</td>
+                    <td className="border-b border-border px-2.5 py-2 text-right text-muted-foreground">{r.c}</td>
+                  </tr>
+                ))}
+                <tr className="bg-muted font-bold">
+                  <td className="px-2.5 py-2 text-ink">Collection</td>
+                  <td className="px-2.5 py-2 text-right text-ink">{formatRM(monthCollection)}</td>
+                  <td className="px-2.5 py-2 text-right text-ink">{formatRM(groupMonthCollection)}</td>
+                  <td className="px-2.5 py-2 text-right text-muted-foreground">{formatRM(salesSummary.groupTotals.collectionTotal)}</td>
+                </tr>
               </tbody>
             </table>
-            <p className="mt-2.5 text-[11px] text-muted-foreground">Career-to-date totals (not scoped to this period) — same figures as Reports &rsquo; &ldquo;My Total Group Production&rdquo;.</p>
+            <p className="mt-2.5 text-[11px] text-muted-foreground">Group = this daie plus their whole downline. Collection is payments received for Perancangan cases.</p>
           </div>
         )}
 

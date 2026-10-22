@@ -53,6 +53,7 @@ export function SalesTrackingCard({
   entries,
   collections,
   groupEntries,
+  groupCollections,
   salesGoal,
 }: {
   uid: string;
@@ -62,6 +63,8 @@ export function SalesTrackingCard({
   collections: CollectionEntry[];
   /** Sale entries for the daie + their whole downline, or null when they have no downline. */
   groupEntries: SaleEntry[] | null;
+  /** Collection entries for the daie + their whole downline, or null when they have no downline. */
+  groupCollections?: CollectionEntry[] | null;
   salesGoal: number | null;
 }) {
   const f = figuresFor(entries, monthKey);
@@ -73,6 +76,7 @@ export function SalesTrackingCard({
   });
   const maxTrend = Math.max(1, ...trend.map((t) => t.total));
   const group = groupEntries ? figuresFor(groupEntries, monthKey) : null;
+  const groupCollected = (groupCollections ?? []).filter((c) => c.date.slice(0, 7) === monthKey).reduce((s, c) => s + c.amountCollected, 0);
 
   const rows: Array<{ label: string; personal: string; group?: string }> = [
     { label: "Perancangan", personal: formatRM(f.perancangan), group: group ? formatRM(group.perancangan) : undefined },
@@ -151,9 +155,14 @@ export function SalesTrackingCard({
                 </tr>
               ))}
               <tr className="font-bold text-ink">
-                <td className="py-2 pr-2">Total RM (Perancangan + Pusaka)</td>
-                <td className="py-2 pr-2 text-right">{formatRM(total)}</td>
-                {group && <td className="py-2 text-right">{formatRM(rmTotal(group))}</td>}
+                <td className="border-b border-border py-2 pr-2">Total RM (Perancangan + Pusaka)</td>
+                <td className="border-b border-border py-2 pr-2 text-right">{formatRM(total)}</td>
+                {group && <td className="border-b border-border py-2 text-right">{formatRM(rmTotal(group))}</td>}
+              </tr>
+              <tr className="text-ink">
+                <td className="py-2 pr-2">Collection (Perancangan payments received)</td>
+                <td className="py-2 pr-2 text-right">{formatRM(collected)}</td>
+                {group && <td className="py-2 text-right">{formatRM(groupCollected)}</td>}
               </tr>
             </tbody>
           </table>

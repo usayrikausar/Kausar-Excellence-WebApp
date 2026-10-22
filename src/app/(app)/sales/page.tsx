@@ -6,6 +6,7 @@ import {
   pickViewedDaie,
   getSaleEntriesForUids,
   getCollectionEntriesForUid,
+  getCollectionEntriesForUids,
   getGoal,
   getUnits,
   canSwitchScope,
@@ -56,11 +57,13 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const unitMonthRows = totalsOnly
     ? (await getGroupSalesByMonth(monthKey < fyStart ? monthKey : fyStart)).filter((r) => r.monthKey === monthKey)
     : null;
-  const [viewedEntries, viewedCollections, viewedGoal, groupEntries] = await Promise.all([
+  const groupUids = viewedDownline.length > 0 ? [viewed.uid, ...viewedDownline.map((m) => m.uid)] : null;
+  const [viewedEntries, viewedCollections, viewedGoal, groupEntries, groupCollections] = await Promise.all([
     getSaleEntriesForUids([viewed.uid]),
     getCollectionEntriesForUid(viewed.uid),
     getGoal(viewed.uid),
-    viewedDownline.length > 0 ? getSaleEntriesForUids([viewed.uid, ...viewedDownline.map((m) => m.uid)]) : Promise.resolve(null),
+    groupUids ? getSaleEntriesForUids(groupUids) : Promise.resolve(null),
+    groupUids ? getCollectionEntriesForUids(groupUids) : Promise.resolve(null),
   ]);
   const pickerOptions = [user, ...pickable]
     .map((m) => ({ uid: m.uid, name: m.name, daieId: m.daieId, rank: m.rank }))
@@ -109,6 +112,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
           entries={viewedEntries}
           collections={viewedCollections}
           groupEntries={groupEntries}
+          groupCollections={groupCollections}
           salesGoal={viewedGoal?.salesGoal ?? null}
         />
 
