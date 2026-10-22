@@ -140,8 +140,22 @@ export interface BulletinDoc {
   title: string;
   body: string;
   imageUrl: string | null;
+  /** Optional PDF (e.g. a memo) — uploaded via /api/upload like images. */
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
   publishAt: unknown;
   createdBy: string;
+}
+
+/** Client-safe bulletin: publishAt as an ISO string (Timestamps can't cross into Client Components). */
+export interface BulletinEntry {
+  id: string;
+  title: string;
+  body: string;
+  imageUrl: string | null;
+  attachmentUrl: string | null;
+  attachmentName: string | null;
+  publishAt: string;
 }
 
 export type ContestSection = "wasiyyah" | "kausar";

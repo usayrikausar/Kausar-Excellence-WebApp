@@ -37,7 +37,7 @@ export default async function BulletinPage({ searchParams }: { searchParams: Pro
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {pageBulletins.map((b) => (
-              <BulletinCard key={b.id} bulletin={b} />
+              <BulletinCard key={b.id} bulletin={b} canDelete={user.isGroupAdmin} />
             ))}
           </div>
           <PageLinks basePath="/bulletin" page={page} totalPages={totalPages} />

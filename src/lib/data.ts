@@ -15,6 +15,7 @@ import type {
   SaleEntry,
   CollectionDoc,
   BulletinDoc,
+  BulletinEntry,
   ContestDoc,
   ContestProgressDoc,
   GoalDoc,
@@ -547,14 +548,28 @@ export async function getTeamWithTotalsFor(downline: CurrentUser[]): Promise<Tea
   });
 }
 
-export async function getRecentBulletins(max = 3): Promise<Array<BulletinDoc & { id: string }>> {
-  const snap = await adminDb.collection("bulletins").orderBy("publishAt", "desc").limit(max).get();
-  return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as BulletinDoc) }));
+function toBulletinEntry(doc: QueryDocumentSnapshot<DocumentData>): BulletinEntry {
+  const data = doc.data() as BulletinDoc;
+  const publishAt = data.publishAt as { toDate?: () => Date } | null;
+  return {
+    id: doc.id,
+    title: data.title,
+    body: data.body,
+    imageUrl: data.imageUrl ?? null,
+    attachmentUrl: data.attachmentUrl ?? null,
+    attachmentName: data.attachmentName ?? null,
+    publishAt: (publishAt?.toDate ? publishAt.toDate() : new Date()).toISOString(),
+  };
 }
 
-export async function getAllBulletins(): Promise<Array<BulletinDoc & { id: string }>> {
+export async function getRecentBulletins(max = 3): Promise<BulletinEntry[]> {
+  const snap = await adminDb.collection("bulletins").orderBy("publishAt", "desc").limit(max).get();
+  return snap.docs.map(toBulletinEntry);
+}
+
+export async function getAllBulletins(): Promise<BulletinEntry[]> {
   const snap = await adminDb.collection("bulletins").orderBy("publishAt", "desc").get();
-  return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as BulletinDoc) }));
+  return snap.docs.map(toBulletinEntry);
 }
 
 export async function getThisMonthBulletinCount(): Promise<number> {

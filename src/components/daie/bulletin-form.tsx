@@ -15,6 +15,7 @@ export function BulletinForm({ createdBy }: { createdBy: string }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [image, setImage] = useState<File | null>(null);
+  const [pdf, setPdf] = useState<File | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -27,11 +28,14 @@ export function BulletinForm({ createdBy }: { createdBy: string }) {
       if (image) {
         imageUrl = await uploadImage("bulletins", image);
       }
+      const attachmentUrl = pdf ? await uploadImage("bulletins", pdf) : null;
 
       await addDoc(collection(db, "bulletins"), {
         title,
         body,
         imageUrl,
+        attachmentUrl,
+        attachmentName: pdf ? pdf.name : null,
         publishAt: serverTimestamp(),
         createdBy,
       });
@@ -83,8 +87,21 @@ export function BulletinForm({ createdBy }: { createdBy: string }) {
               {imageSizeNote(image).text}
             </p>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="bulletin-pdf">PDF attachment (optional, e.g. a memo)</Label>
+            <Input
+              id="bulletin-pdf"
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setPdf(e.target.files?.[0] ?? null)}
+              aria-describedby="bulletin-pdf-note"
+            />
+            <p id="bulletin-pdf-note" className={imageSizeNote(pdf, "pdf").tooBig ? "text-xs font-medium text-red-600" : "text-xs text-muted-foreground"}>
+              {imageSizeNote(pdf, "pdf").text}
+            </p>
+          </div>
           {error && <p className="text-sm font-medium text-red-600">{error}</p>}
-          <Button type="submit" disabled={status === "saving" || imageSizeNote(image).tooBig}>
+          <Button type="submit" disabled={status === "saving" || imageSizeNote(image).tooBig || imageSizeNote(pdf, "pdf").tooBig}>
             {status === "saving" ? "Publishing…" : "Publish"}
           </Button>
         </form>

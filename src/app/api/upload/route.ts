@@ -25,8 +25,12 @@ export async function POST(request: Request) {
   const file = form.get("file");
   if (!FOLDERS.has(folder)) return Response.json({ error: "Unknown upload folder." }, { status: 400 });
   if (!(file instanceof File) || file.size === 0) return Response.json({ error: "No image was attached." }, { status: 400 });
-  if (!file.type.startsWith("image/")) return Response.json({ error: "Only image files can be uploaded." }, { status: 400 });
-  if (file.size > MAX_BYTES) return Response.json({ error: "The image is larger than 15 MB. Choose a smaller one." }, { status: 413 });
+  // Bulletins can also carry a PDF (memos); contest posters are images only.
+  const isPdf = file.type === "application/pdf";
+  if (!file.type.startsWith("image/") && !(isPdf && folder === "bulletins")) {
+    return Response.json({ error: folder === "bulletins" ? "Only images or PDF files can be uploaded." : "Only image files can be uploaded." }, { status: 400 });
+  }
+  if (file.size > MAX_BYTES) return Response.json({ error: `The ${isPdf ? "PDF" : "image"} is larger than 15 MB. Choose a smaller one.` }, { status: 413 });
 
   const safeName = file.name.replace(/[^A-Za-z0-9._-]+/g, "_").slice(-80) || "image";
   const path = `${folder}/${Date.now()}-${safeName}`;

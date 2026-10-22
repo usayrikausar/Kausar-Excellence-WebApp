@@ -157,7 +157,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recentBulletins.map((b) => (
-              <BulletinCard key={b.id} bulletin={b} />
+              <BulletinCard key={b.id} bulletin={b} canDelete={user.isGroupAdmin} />
             ))}
           </div>
         )}
