@@ -46,7 +46,48 @@ function StatusMessage({ status }: { status: "idle" | "saving" | "saved" | "erro
   return null;
 }
 
+/**
+ * Perancangan box: a new wasiat/hibah case, or a payment received against
+ * one. Collections only ever relate to Perancangan, so they're entered here
+ * rather than in a box of their own.
+ */
 export function PerancanganForm({ uid, prospects = [] }: { uid: string; prospects?: ProspectOption[] }) {
+  const [mode, setMode] = useState<"case" | "collection">("case");
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Perancangan</CardTitle>
+        <CardDescription>
+          {mode === "case"
+            ? "Wasiat or hibah planning case — Perancangan totals combine both; picking one here only powers the separate Hibah Round Table tracking."
+            : "Payment received for a Perancangan case — enter the RM amount collected."}
+        </CardDescription>
+        <div role="tablist" aria-label="Perancangan entry type" className="mt-2 flex w-fit gap-1 rounded-lg bg-muted p-1">
+          {(["case", "collection"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={mode === m}
+              onClick={() => setMode(m)}
+              className={
+                "rounded-md px-3 py-1.5 text-sm font-semibold transition-colors " +
+                (mode === m ? "bg-white text-ink shadow-sm" : "text-muted-foreground hover:text-ink")
+              }
+            >
+              {m === "case" ? "New case" : "Payment received"}
+            </button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {mode === "case" ? <PerancanganCaseFields uid={uid} prospects={prospects} /> : <CollectionFields uid={uid} prospects={prospects} />}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PerancanganCaseFields({ uid, prospects }: { uid: string; prospects: ProspectOption[] }) {
   const router = useRouter();
   const [subCategory, setSubCategory] = useState<"wasiat" | "hibah">("wasiat");
   const [amount, setAmount] = useState("");
@@ -78,46 +119,38 @@ export function PerancanganForm({ uid, prospects = [] }: { uid: string; prospect
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Perancangan</CardTitle>
-        <CardDescription>Wasiat or hibah planning case — Perancangan totals combine both; picking one here only powers the separate Hibah Round Table tracking.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Type</Label>
-            <RadioGroup value={subCategory} onValueChange={(v) => setSubCategory(v as "wasiat" | "hibah")} className="flex gap-6">
-              <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="wasiat" id="perancangan-wasiat" /> Wasiat</label>
-              <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="hibah" id="perancangan-hibah" /> Hibah</label>
-            </RadioGroup>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="perancangan-amount">Amount (RM)</Label>
-            <Input
-              id="perancangan-amount"
-              type="number"
-              min={0}
-              step="0.01"
-              required
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="perancangan-date">Date</Label>
-            <Input id="perancangan-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <ProspectLinkSelect prospects={prospects} value={prospectId} onChange={setProspectId} idPrefix="perancangan" />
-          <div className="flex items-center gap-3">
-            <Button type="submit" disabled={status === "saving"}>
-              {status === "saving" ? "Saving…" : "Add entry"}
-            </Button>
-            <StatusMessage status={status} />
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label>Type</Label>
+        <RadioGroup value={subCategory} onValueChange={(v) => setSubCategory(v as "wasiat" | "hibah")} className="flex gap-6">
+          <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="wasiat" id="perancangan-wasiat" /> Wasiat</label>
+          <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="hibah" id="perancangan-hibah" /> Hibah</label>
+        </RadioGroup>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="perancangan-amount">Amount (RM)</Label>
+        <Input
+          id="perancangan-amount"
+          type="number"
+          min={0}
+          step="0.01"
+          required
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="perancangan-date">Date</Label>
+        <Input id="perancangan-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+      </div>
+      <ProspectLinkSelect prospects={prospects} value={prospectId} onChange={setProspectId} idPrefix="perancangan" />
+      <div className="flex items-center gap-3">
+        <Button type="submit" disabled={status === "saving"}>
+          {status === "saving" ? "Saving…" : "Add case"}
+        </Button>
+        <StatusMessage status={status} />
+      </div>
+    </form>
   );
 }
 
@@ -294,7 +327,7 @@ export function KesPusakaForm({ uid, prospects = [] }: { uid: string; prospects?
  * optional prospect link (saleRef is left null — no UI here to pick which
  * specific prior sale a payment is against, that's a bigger feature).
  */
-export function CollectionForm({ uid, prospects = [] }: { uid: string; prospects?: ProspectOption[] }) {
+function CollectionFields({ uid, prospects }: { uid: string; prospects: ProspectOption[] }) {
   const router = useRouter();
   const [amountCollected, setAmountCollected] = useState("");
   const [date, setDate] = useState(todayISO());
@@ -323,38 +356,30 @@ export function CollectionForm({ uid, prospects = [] }: { uid: string; prospects
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Collection</CardTitle>
-        <CardDescription>Payment received — enter the RM amount collected.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="collection-amount">Amount collected (RM)</Label>
-            <Input
-              id="collection-amount"
-              type="number"
-              min={0}
-              step="0.01"
-              required
-              value={amountCollected}
-              onChange={(e) => setAmountCollected(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="collection-date">Date</Label>
-            <Input id="collection-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <ProspectLinkSelect prospects={prospects} value={prospectId} onChange={setProspectId} idPrefix="collection" />
-          <div className="flex items-center gap-3">
-            <Button type="submit" disabled={status === "saving"}>
-              {status === "saving" ? "Saving…" : "Add entry"}
-            </Button>
-            <StatusMessage status={status} />
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="collection-amount">Amount collected (RM)</Label>
+        <Input
+          id="collection-amount"
+          type="number"
+          min={0}
+          step="0.01"
+          required
+          value={amountCollected}
+          onChange={(e) => setAmountCollected(e.target.value)}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="collection-date">Date</Label>
+        <Input id="collection-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+      </div>
+      <ProspectLinkSelect prospects={prospects} value={prospectId} onChange={setProspectId} idPrefix="collection" />
+      <div className="flex items-center gap-3">
+        <Button type="submit" disabled={status === "saving"}>
+          {status === "saving" ? "Saving…" : "Add payment"}
+        </Button>
+        <StatusMessage status={status} />
+      </div>
+    </form>
   );
 }

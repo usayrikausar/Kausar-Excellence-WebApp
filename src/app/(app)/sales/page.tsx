@@ -21,7 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScopeSwitcher } from "@/components/daie/scope-switcher";
 import { currentMonthKey, type MonthKey } from "@/lib/scoring";
-import { PerancanganForm, PengurusanForm, KesPusakaForm, CollectionForm } from "@/components/daie/sales-forms";
+import { PerancanganForm, PengurusanForm, KesPusakaForm } from "@/components/daie/sales-forms";
 import { SalesComparison } from "@/components/daie/sales-totals";
 import { ExportSalesCsvButton } from "@/components/daie/export-sales-csv-button";
 import { SalesTrackingCard } from "@/components/daie/sales-tracking-card";
@@ -73,11 +73,10 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
         <p className="text-sm text-muted-foreground">Record a new entry, then check your running totals below.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         <PerancanganForm uid={user.uid} prospects={prospects} />
         <PengurusanForm uid={user.uid} prospects={prospects} />
         <KesPusakaForm uid={user.uid} prospects={prospects} />
-        <CollectionForm uid={user.uid} prospects={prospects} />
       </div>
 
       <div className="flex justify-end">

@@ -17,6 +17,11 @@ const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  // Without a bucket, getStorage() has no default and every upload (bulletin
+  // images, contest posters) throws before anything is saved. Firebase's
+  // default bucket name for this project is <projectId>.firebasestorage.app.
+  storageBucket:
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ?? `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebasestorage.app`,
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
