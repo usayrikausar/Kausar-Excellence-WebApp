@@ -694,9 +694,10 @@ export async function getPresentStageFirstDatesForUids(uids: string[]): Promise<
       const uid = data.uid as string;
       const prospectId = doc.ref.parent.parent!.id;
       const byProspect = firstByUidAndProspect.get(uid) ?? new Map<string, string>();
-      if (byProspect.has(prospectId)) return; // ascending order — first occurrence is the earliest
-      const createdAt = data.createdAt as { toDate: () => Date };
-      byProspect.set(prospectId, createdAt.toDate().toISOString());
+      // The date the daie logged it happened (update.date), else when it was saved.
+      const when = typeof data.date === "string" ? data.date : (data.createdAt as { toDate: () => Date }).toDate().toISOString();
+      const prev = byProspect.get(prospectId);
+      if (!prev || when < prev) byProspect.set(prospectId, when);
       firstByUidAndProspect.set(uid, byProspect);
     });
   }

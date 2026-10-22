@@ -33,12 +33,12 @@ export const REGION_LABELS: Record<Region, string> = {
 export const STAGE_LABELS: Record<PipppasStage, string> = {
   prospecting: "Prospecting",
   initial_contact: "Initial Contact",
-  present: "Present",
+  present: "Presentation",
   prepare_solution: "Prepare Solution",
   present_solution: "Present Solution",
-  administration: "Administration",
-  signing_akad: "Signing & Akad",
-  safekeeping: "Safekeeping & Delivery",
+  signing_akad: "Akad & Signing",
+  safekeeping: "Safekeeping (document)",
+  video_delivery: "Upload video to Syariah & deliver document",
 };
 
 /**
@@ -60,6 +60,7 @@ export const SOURCE_LABELS: Record<ProspectSource, string> = {
   training: "Training",
   prosper_invite: "PROSPER Invite",
   project200: "Project 200",
+  jfw: "JFW (joint field work)",
   other: "Other",
 };
 

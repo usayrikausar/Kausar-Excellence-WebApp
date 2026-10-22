@@ -10,6 +10,8 @@ import {
   resolveViewScope,
   scopeOptions,
   getScopeMembers,
+  getDownline,
+  getUsersByUids,
 } from "@/lib/data";
 import { UNIT_LABELS } from "@/lib/constants";
 import { currentMonthKey, type MonthKey, type TrafficLightColor } from "@/lib/scoring";
@@ -67,6 +69,19 @@ export default async function ActivitiesPage({
           return { unitId, counts };
         })
       : null;
+  // Log-an-activity choices: the daie's own open prospects, and for JFW the
+  // people they work with — their uplines and their own downline.
+  const [ownDownline, uplines] = await Promise.all([
+    scope.kind === "lineage" ? Promise.resolve(members) : getDownline(user),
+    getUsersByUids(user.lineagePath),
+  ]);
+  const activityProspects = prospects
+    .filter((p) => p.status === "active")
+    .map((p) => ({ id: p.id, name: p.name, stage: p.stage, phone: p.phone }));
+  const jfwTeam = [...uplines.reverse(), ...ownDownline.slice().sort((a, b) => a.name.localeCompare(b.name))]
+    .filter((m) => !m.isStaff)
+    .map((m) => ({ uid: m.uid, name: m.name, daieId: m.daieId }));
+
   const pickerOptions = [user, ...pickable]
     .map((m) => ({ uid: m.uid, name: m.name, daieId: m.daieId, rank: m.rank }))
     .sort((a, b) => (a.uid === user.uid ? -1 : b.uid === user.uid ? 1 : a.name.localeCompare(b.name)));
@@ -139,7 +154,7 @@ export default async function ActivitiesPage({
         {report === "group" && unitCounts && <UnitTrafficLightCounts rows={unitCounts} units={units} monthLabel={monthLabel(monthKey)} />}
       </section>
 
-      <LogActivityForm uid={user.uid} />
+      <LogActivityForm uid={user.uid} prospects={activityProspects} team={jfwTeam} />
 
       <ActivitiesView prospects={prospects} />
     </div>

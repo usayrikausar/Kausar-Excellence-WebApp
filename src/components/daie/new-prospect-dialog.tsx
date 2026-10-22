@@ -95,7 +95,7 @@ export function NewProspectDialog({ uid }: { uid: string }) {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(SOURCE_LABELS)
-                    .filter(([value]) => value !== "training" && value !== "prosper_invite") // activity-only types, not a "how did you meet this prospect" source — see SOURCE_LABELS' comment
+                    .filter(([value]) => value !== "training" && value !== "prosper_invite" && value !== "jfw") // activity-only types, not a "how did you meet this prospect" source — see SOURCE_LABELS' comment
                     .map(([value, label]) => (
                       <SelectItem key={value} value={value}>{label}</SelectItem>
                     ))}

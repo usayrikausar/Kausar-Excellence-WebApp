@@ -37,7 +37,8 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-const CLOSEABLE_STAGES: PipppasStage[] = ["administration", "signing_akad", "safekeeping"];
+// From Present Solution on — that's where the client picks the service.
+const CLOSEABLE_STAGES: PipppasStage[] = ["present_solution", "signing_akad", "safekeeping", "video_delivery"];
 
 export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospect: ProspectWithId; open: boolean; onOpenChange: (open: boolean) => void }) {
   const router = useRouter();

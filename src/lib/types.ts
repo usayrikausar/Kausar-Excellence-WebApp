@@ -278,21 +278,30 @@ export const PROSPECT_SOURCES = [
   "training",
   "prosper_invite",
   "project200",
+  "jfw",
   "other",
 ] as const;
 export type ProspectSource = (typeof PROSPECT_SOURCES)[number];
 
-/** PIPPPAS stages, in pipeline order — Prospecting, Initial Contact, Present, Prepare Solution, Present Solution, Administration, Signing & Akad, Safekeeping & Delivery. */
+/**
+ * PIPPPAS stages, in pipeline order (2026-10-22, per the user): Prospecting,
+ * Initial Contact, Presentation, Prepare Solution, Present Solution, Akad &
+ * Signing, Safekeeping (document), Upload video to Syariah & deliver
+ * document. "Administration" was dropped. Keys are kept stable — "present"
+ * is what the traffic light counts as a presentation.
+ */
 export const PIPPPAS_STAGES = [
   "prospecting",
   "initial_contact",
   "present",
   "prepare_solution",
   "present_solution",
-  "administration",
   "signing_akad",
   "safekeeping",
+  "video_delivery",
 ] as const;
+/** The last stage — logging it completes the case (status closed_won). */
+export const FINAL_STAGE: PipppasStage = "video_delivery";
 export type PipppasStage = (typeof PIPPPAS_STAGES)[number];
 
 export type ProspectStatus = "active" | "closed_won" | "closed_lost";
@@ -400,6 +409,9 @@ export interface ActivityDoc {
   reachCount: number;
   note: string | null;
   date: string; // ISO date
+  /** JFW (joint field work): the team member it was done with. */
+  withUid?: string | null;
+  withName?: string | null;
   createdAt: unknown;
 }
 
