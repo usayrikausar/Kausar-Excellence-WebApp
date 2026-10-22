@@ -80,7 +80,7 @@ export default async function ActivitiesPage({
     .map((p) => ({ id: p.id, name: p.name, stage: p.stage, phone: p.phone }));
   const jfwTeam = [...uplines.reverse(), ...ownDownline.slice().sort((a, b) => a.name.localeCompare(b.name))]
     .filter((m) => !m.isStaff)
-    .map((m) => ({ uid: m.uid, name: m.name, daieId: m.daieId }));
+    .map((m) => ({ uid: m.uid, name: m.name, daieId: m.daieId, rank: m.rank, unitId: m.unitId }));
 
   const pickerOptions = [user, ...pickable]
     .map((m) => ({ uid: m.uid, name: m.name, daieId: m.daieId, rank: m.rank }))

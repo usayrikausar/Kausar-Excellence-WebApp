@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
-import { uploadImage } from "@/lib/upload-image";
+import { uploadImage, imageSizeNote } from "@/lib/upload-image";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,7 +112,10 @@ export function CreateContestForm({ createdBy }: { createdBy: string }) {
 
           <div className="space-y-2">
             <Label htmlFor="contest-poster">Poster image</Label>
-            <Input id="contest-poster" type="file" accept="image/*" onChange={(e) => setPoster(e.target.files?.[0] ?? null)} />
+            <Input id="contest-poster" type="file" accept="image/*" onChange={(e) => setPoster(e.target.files?.[0] ?? null)} aria-describedby="contest-poster-note" />
+            <p id="contest-poster-note" className={imageSizeNote(poster).tooBig ? "text-xs font-medium text-red-600" : "text-xs text-muted-foreground"}>
+              {imageSizeNote(poster).text}
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -143,7 +146,7 @@ export function CreateContestForm({ createdBy }: { createdBy: string }) {
           {status === "error" && <p className="text-sm font-medium text-red-600">Could not create contest. {errorDetail || "Please try again."}</p>}
 
           <div className="flex gap-2">
-            <Button type="submit" disabled={status === "saving"}>
+            <Button type="submit" disabled={status === "saving" || imageSizeNote(poster).tooBig}>
               {status === "saving" ? "Creating…" : "Create contest"}
             </Button>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

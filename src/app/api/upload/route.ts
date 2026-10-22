@@ -13,7 +13,7 @@ import { adminBucket } from "@/lib/firebase/admin";
 // write bulletins and contests.
 
 const FOLDERS = new Set(["bulletins", "contests"]);
-const MAX_BYTES = 15 * 1024 * 1024;
+const MAX_BYTES = 15 * 1024 * 1024; // keep in step with MAX_IMAGE_MB in lib/upload-image.ts
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();

@@ -469,6 +469,31 @@ export async function getSaleEntriesForUnit(unitId: string): Promise<SaleEntry[]
   return sales.filter((s) => s.unitId === unitId).map(({ unitId: _unitId, ...entry }) => entry);
 }
 
+/** Minimal, client-safe daie card for pickers (e.g. JFW partner search). */
+export interface DaieDirectoryEntry {
+  uid: string;
+  name: string;
+  daieId: string;
+  rank: string;
+  unitId: string;
+}
+let directoryCache: { at: number; entries: DaieDirectoryEntry[] } | null = null;
+
+/**
+ * Every real daie in the group (no staff, no record-only profiles), kept in
+ * memory for a few minutes — backs the JFW partner search, where a partner
+ * can be anyone in any unit, not just the daie's own line.
+ */
+export async function getDaieDirectory(): Promise<DaieDirectoryEntry[]> {
+  if (directoryCache && Date.now() - directoryCache.at < UNIT_SALES_CACHE_MS) return directoryCache.entries;
+  const snap = await adminDb.collection("users").select("name", "daieId", "rank", "unitId", "isStaff", "recordOnly").get();
+  const entries = snap.docs
+    .filter((d) => d.get("isStaff") !== true && d.get("recordOnly") !== true)
+    .map((d) => ({ uid: d.id, name: String(d.get("name") ?? ""), daieId: String(d.get("daieId") ?? ""), rank: String(d.get("rank") ?? ""), unitId: String(d.get("unitId") ?? "") }));
+  directoryCache = { at: Date.now(), entries };
+  return entries;
+}
+
 export interface SalesSummary {
   personalTotals: SalesTotals;
   groupTotals: SalesTotals | null;

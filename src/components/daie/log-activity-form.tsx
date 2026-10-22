@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addDoc, collection, doc, serverTimestamp, Timestamp, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SOURCE_LABELS, STAGE_LABELS } from "@/lib/constants";
+import { SOURCE_LABELS, STAGE_LABELS, UNIT_LABELS } from "@/lib/constants";
 import { FINAL_STAGE, PIPPPAS_STAGES, type PipppasStage, type ProspectSource } from "@/lib/types";
 
 function todayISO() {
@@ -33,6 +33,89 @@ export interface TeamMemberOption {
   uid: string;
   name: string;
   daieId: string;
+  rank?: string;
+  unitId?: string;
+}
+
+/**
+ * JFW partner picker. A partner can be any daie in the group — any rank, any
+ * unit, not only the daie's own line — so typing searches everyone
+ * (/api/daie-search); with the box empty, the daie's own uplines and team are
+ * offered as quick picks.
+ */
+function JfwPartnerPicker({ suggestions, value, onChange }: { suggestions: TeamMemberOption[]; value: TeamMemberOption | null; onChange: (m: TeamMemberOption | null) => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<TeamMemberOption[]>([]);
+  const [searching, setSearching] = useState(false);
+  const q = query.trim();
+
+  useEffect(() => {
+    if (q.length < 2) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/daie-search?q=${encodeURIComponent(q)}`);
+        const json = (await res.json()) as { results?: TeamMemberOption[] };
+        if (!cancelled) setResults(json.results ?? []);
+      } catch {
+        if (!cancelled) setResults([]);
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [q]);
+
+  const list = q.length >= 2 ? results : suggestions.slice(0, 8);
+  const unitShort = (id?: string) => (id ? (UNIT_LABELS[id as keyof typeof UNIT_LABELS] ?? "") : "");
+
+  if (value) {
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+        <span className="font-medium text-ink">{value.name}</span>
+        <span className="text-muted-foreground">
+          {value.daieId}
+          {value.rank ? ` · ${value.rank}` : ""}
+          {unitShort(value.unitId) ? ` · ${unitShort(value.unitId)}` : ""}
+        </span>
+        <button type="button" onClick={() => onChange(null)} className="ml-auto text-xs font-semibold text-primary hover:underline">
+          Change
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Input id="jfw-with" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search any daie by name or Daie ID" autoComplete="off" />
+      <div className="max-h-56 overflow-y-auto rounded-md border border-border">
+        {q.length < 2 && suggestions.length > 0 && <p className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Your team</p>}
+        {searching && <p className="px-3 py-2 text-sm text-muted-foreground">Searching…</p>}
+        {!searching && list.length === 0 && (
+          <p className="px-3 py-2 text-sm text-muted-foreground">{q.length >= 2 ? "No daie found." : "Type at least 2 letters to search."}</p>
+        )}
+        {list.map((m) => (
+          <button
+            key={m.uid}
+            type="button"
+            onClick={() => onChange(m)}
+            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted"
+          >
+            <span className="font-medium text-ink">{m.name}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {m.daieId}
+              {m.rank ? ` · ${m.rank}` : ""}
+              {unitShort(m.unitId) ? ` · ${unitShort(m.unitId)}` : ""}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 type Service = "perancangan" | "pengurusan" | "kesPusaka";
@@ -85,7 +168,7 @@ export function LogActivityForm({
   const [serviceSub, setServiceSub] = useState("wasiat");
   const [saleValue, setSaleValue] = useState("");
   // JFW
-  const [withUid, setWithUid] = useState("");
+  const [partner, setPartner] = useState<TeamMemberOption | null>(null);
 
   const isLater = (LATER_STAGES as readonly string[]).includes(step);
   const reachless = method === "prosper_invite";
@@ -101,7 +184,7 @@ export function LogActivityForm({
     setNextFollowUpDate("");
     setRecordSale(false);
     setSaleValue("");
-    setWithUid("");
+    setPartner(null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -119,7 +202,6 @@ export function LogActivityForm({
           createdAt: serverTimestamp(),
         });
       } else if (step === "training" || step === "jfw") {
-        const partner = team.find((m) => m.uid === withUid) ?? null;
         await addDoc(collection(db, "activities"), {
           uid,
           type: step,
@@ -365,19 +447,8 @@ export function LogActivityForm({
 
           {step === "jfw" && (
             <div className="space-y-2">
-              <Label htmlFor="jfw-with">With</Label>
-              {team.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No team members to choose from — add a note instead.</p>
-              ) : (
-                <Select value={withUid} onValueChange={setWithUid}>
-                  <SelectTrigger id="jfw-with"><SelectValue placeholder="Choose a team member" /></SelectTrigger>
-                  <SelectContent>
-                    {team.map((m) => (
-                      <SelectItem key={m.uid} value={m.uid}>{m.name} ({m.daieId})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <Label htmlFor="jfw-with">With (any KDE, DPM or DM)</Label>
+              <JfwPartnerPicker suggestions={team} value={partner} onChange={setPartner} />
             </div>
           )}
 
@@ -402,7 +473,7 @@ export function LogActivityForm({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={status === "saving" || (isLater && !prospectId)}>
+            <Button type="submit" disabled={status === "saving" || (isLater && !prospectId) || (step === "jfw" && !partner)}>
               {status === "saving" ? "Saving…" : step === "initial_contact" ? "Add prospect" : "Log it"}
             </Button>
             {status === "saved" && <span className="text-sm font-medium text-success">Saved.</span>}
