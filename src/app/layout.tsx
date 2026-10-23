@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import { UpdateBanner } from "@/components/update-banner";
+import { IS_STAGING, StagingBanner } from "@/components/staging-banner";
 import "./globals.css";
 
 // Single typeface across the whole app — Elza (the brand's display font) is
@@ -14,7 +15,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Kausar Group Excellence WebApp",
+  title: IS_STAGING ? "STAGING · Kausar Group Excellence WebApp" : "Kausar Group Excellence WebApp",
   description: "Internal daie network dashboard for Kausar Group.",
   manifest: "/manifest.json",
 };
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ServiceWorkerRegistration />
+        <StagingBanner />
         <UpdateBanner />
         {children}
       </body>

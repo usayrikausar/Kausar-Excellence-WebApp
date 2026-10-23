@@ -1,6 +1,7 @@
 {
   "projects": {
     "default": "demo-kausar-group",
-    "production": "kausar-excellence-web-app"
+    "production": "kausar-excellence-web-app",
+    "staging": "staging-kausar-excell-web-app"
   }
 }

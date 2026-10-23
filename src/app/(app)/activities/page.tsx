@@ -12,6 +12,7 @@ import {
   getScopeMembers,
   getDownline,
   getUsersByUids,
+  getSaleEntriesForUids,
 } from "@/lib/data";
 import { UNIT_LABELS } from "@/lib/constants";
 import { currentMonthKey, type MonthKey, type TrafficLightColor } from "@/lib/scoring";
@@ -44,7 +45,13 @@ export default async function ActivitiesPage({
   const scope = resolveViewScope(user, scopeParamValue);
   const totalsOnly = scope.kind === "overall";
 
-  const [prospects, members, units] = await Promise.all([getProspectsForUid(user.uid), getScopeMembers(user, scope), getUnits()]);
+  // Own sales too: the Clients view shows what each client took (their linked sale).
+  const [prospects, members, units, ownSales] = await Promise.all([
+    getProspectsForUid(user.uid),
+    getScopeMembers(user, scope),
+    getUnits(),
+    getSaleEntriesForUids([user.uid]),
+  ]);
   // Individual reports are only for people the viewer may open by name: in a
   // KDE's "Overall" view that's still just their own unit.
   const pickable = totalsOnly ? members.filter((m) => m.unitId === user.unitId) : members;
@@ -75,6 +82,8 @@ export default async function ActivitiesPage({
     scope.kind === "lineage" ? Promise.resolve(members) : getDownline(user),
     getUsersByUids(user.lineagePath),
   ]);
+  const linkedSaleIds = new Set(prospects.map((p) => p.linkedSaleId).filter(Boolean));
+  const clientSales = ownSales.filter((s) => linkedSaleIds.has(s.id));
   const activityProspects = prospects
     .filter((p) => p.status === "active")
     .map((p) => ({ id: p.id, name: p.name, stage: p.stage, phone: p.phone }));
@@ -156,7 +165,7 @@ export default async function ActivitiesPage({
 
       <LogActivityForm uid={user.uid} prospects={activityProspects} team={jfwTeam} />
 
-      <ActivitiesView prospects={prospects} />
+      <ActivitiesView prospects={prospects} sales={clientSales} />
     </div>
   );
 }
