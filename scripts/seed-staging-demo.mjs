@@ -55,7 +55,7 @@ const db = getFirestore();
 const EMAIL_DOMAIN = "demo.kausar.test";
 const COLLECTIONS = [
   "users", "units", "sales", "collections", "activities", "prospects", "goals", "wasitahSubscription",
-  "contests", "contestProgress", "trainings", "trainingAttendance", "achievements", "bulletins", "loginLinks", "meta",
+  "contests", "contestProgress", "trainings", "trainingAttendance", "achievements", "bulletins", "marketing", "loginLinks", "meta",
 ];
 
 // --- Seeded RNG so a re-run gives the same demo picture ---------------------
@@ -113,12 +113,15 @@ function demoName() {
 
 // --- Units ------------------------------------------------------------------
 // `pace` makes the units differ on the Home graph instead of five equal bars.
+// `kde`: the real Ketua Agensi's name on the demo KDE account (agreed
+// 2026-10-23), and one login per person — Kausar Wealth's two heads share one
+// KDE account, as on live (create-linked-logins-production.mjs).
 const UNITS = [
-  { id: "kausar-wealth", name: "Kausar Wealth", short: "kwm", pace: 1.6 },
-  { id: "kausar-global", name: "Kausar Global", short: "kg", pace: 1.0 },
-  { id: "kausar-aspire", name: "Kausar Aspire", short: "ka", pace: 0.75 },
-  { id: "kausar-intisar", name: "Kausar Intisar", short: "ki", pace: 1.2 },
-  { id: "kausar-nusrah", name: "Kausar Nusrah", short: "kn", pace: 0.6 },
+  { id: "kausar-wealth", name: "Kausar Wealth", short: "kwm", pace: 1.6, kde: { name: "Kham & Suzana", logins: [["kham", "Kham"], ["suzana", "Suzana"]] } },
+  { id: "kausar-global", name: "Kausar Global", short: "kg", pace: 1.0, kde: { name: "Umi", logins: [["umi", "Umi"]] } },
+  { id: "kausar-aspire", name: "Kausar Aspire", short: "ka", pace: 0.75, kde: { name: "Usayri", logins: [["usayri", "Usayri"]] } },
+  { id: "kausar-intisar", name: "Kausar Intisar", short: "ki", pace: 1.2, kde: { name: "Intan", logins: [["intan", "Intan"]] } },
+  { id: "kausar-nusrah", name: "Kausar Nusrah", short: "kn", pace: 0.6, kde: { name: "Shiqien", logins: [["shiqien", "Shiqien"]] } },
 ];
 const REGIONS = ["east-coast", "central", "northern", "southern", "borneo"];
 
@@ -156,6 +159,12 @@ async function createLogin({ email, name, claims, role, unitName }) {
   await auth.setCustomUserClaims(user.uid, claims);
   logins.push({ role, unit: unitName, name, email, password });
   return user.uid;
+}
+
+/** A second login that opens an existing account (loginLinks + profileUid claim — see lib/auth/session.ts). */
+async function createLinkedLogin({ email, name, profileUid, claims, role, unitName }) {
+  const authUid = await createLogin({ email, name, claims: { ...claims, profileUid }, role, unitName });
+  put(db.collection("loginLinks").doc(authUid), { profileUid, email, createdAt: FieldValue.serverTimestamp() });
 }
 
 async function reset() {
@@ -525,12 +534,21 @@ async function main() {
     const withLogin = new Set(["kde", "dpm1", "dm1"]);
     const byKey = {};
     for (const [i, p] of plan.entries()) {
-      const name = demoName();
-      const email = `${p.key}.${unit.short}@${EMAIL_DOMAIN}`;
+      // demoName() is still drawn for the KDE so the seeded RNG — and so the
+      // whole demo picture — stays the same as before the real names.
+      const isKde = p.key === "kde";
+      const name = isKde ? (demoName(), unit.kde.name) : demoName();
+      const email = `${isKde ? unit.kde.logins[0][0] : p.key}.${unit.short}@${EMAIL_DOMAIN}`;
       const upline = p.upline ? byKey[p.upline] : null;
+      const claims = { rank: p.rank, unitId: unit.id, isGroupAdmin: false };
       const uid = withLogin.has(p.key)
-        ? await createLogin({ email, name, claims: { rank: p.rank, unitId: unit.id, isGroupAdmin: false }, role: p.rank, unitName: unit.name })
+        ? await createLogin({ email, name: isKde ? unit.kde.logins[0][1] : name, claims, role: p.rank, unitName: unit.name })
         : db.collection("users").doc().id;
+      if (isKde) {
+        for (const [local, person] of unit.kde.logins.slice(1)) {
+          await createLinkedLogin({ email: `${local}.${unit.short}@${EMAIL_DOMAIN}`, name: person, profileUid: uid, claims, role: "KDE (shared account)", unitName: unit.name });
+        }
+      }
 
       // Licences: most renewed to 2027; per unit one already expired and two
       // expiring within 6 months, so the renewal reminder has something to show.

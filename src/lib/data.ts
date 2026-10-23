@@ -16,6 +16,8 @@ import type {
   CollectionDoc,
   BulletinDoc,
   BulletinEntry,
+  MarketingDoc,
+  MarketingEntry,
   ContestDoc,
   ContestProgressDoc,
   GoalDoc,
@@ -570,6 +572,33 @@ export async function getRecentBulletins(max = 3): Promise<BulletinEntry[]> {
 export async function getAllBulletins(): Promise<BulletinEntry[]> {
   const snap = await adminDb.collection("bulletins").orderBy("publishAt", "desc").get();
   return snap.docs.map(toBulletinEntry);
+}
+
+function toMarketingEntry(doc: QueryDocumentSnapshot<DocumentData>): MarketingEntry {
+  const data = doc.data() as MarketingDoc;
+  const createdAt = data.createdAt as { toDate?: () => Date } | null;
+  return {
+    id: doc.id,
+    title: data.title,
+    category: data.category,
+    kind: data.kind,
+    caption: data.caption ?? null,
+    fileUrl: data.fileUrl ?? null,
+    fileName: data.fileName ?? null,
+    videoUrl: data.videoUrl ?? null,
+    createdAt: (createdAt?.toDate ? createdAt.toDate() : new Date()).toISOString(),
+  };
+}
+
+/** Every Marketing Kit item, newest first. */
+export async function getMarketingMaterials(): Promise<MarketingEntry[]> {
+  const snap = await adminDb.collection("marketing").orderBy("createdAt", "desc").get();
+  return snap.docs.map(toMarketingEntry);
+}
+
+export async function getMarketingMaterial(id: string): Promise<MarketingEntry | null> {
+  const doc = await adminDb.collection("marketing").doc(id).get();
+  return doc.exists ? toMarketingEntry(doc as QueryDocumentSnapshot<DocumentData>) : null;
 }
 
 export async function getThisMonthBulletinCount(): Promise<number> {

@@ -94,6 +94,13 @@ service cloud.firestore {
       allow write: if isGroupAdmin();
     }
 
+    // marketing/{id} — Marketing Kit (posters, video links, PDFs). Same as
+    // bulletins: everyone reads, only group admins change (via /api/marketing).
+    match /marketing/{id} {
+      allow read: if signedIn();
+      allow write: if isGroupAdmin();
+    }
+
     // contests/{id} — Wasiyyah/Kausar contest posts (poster, requirements,
     // dates, target table). Any signed-in daie reads; only group admins
     // create/edit/delete.

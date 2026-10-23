@@ -1,4 +1,4 @@
-import type { UnitId, PipppasStage, ProspectSource, ProfessionType, GovernmentTahap, IncomeBracket, Region } from "./types";
+import type { UnitId, PipppasStage, ProspectSource, ProfessionType, GovernmentTahap, IncomeBracket, Region, MarketingCategory, MarketingKind } from "./types";
 
 export const UNIT_LABELS: Record<UnitId, string> = {
   "kausar-wealth": "Kausar Wealth",
@@ -50,6 +50,20 @@ export const STAGE_LABELS: Record<PipppasStage, string> = {
  * invited someone to a PROSPER BOP event" aren't the same kind of thing,
  * even though both feed the same reach/traffic-light bookkeeping.
  */
+export const MARKETING_CATEGORY_LABELS: Record<MarketingCategory, string> = {
+  awareness: "Awareness",
+  events: "Events",
+  talks: "Talks",
+  testimonials: "Testimonials",
+  festive: "Festive greetings",
+};
+
+export const MARKETING_KIND_LABELS: Record<MarketingKind, string> = {
+  poster: "Poster / image",
+  video: "Video link",
+  pdf: "PDF",
+};
+
 export const SOURCE_LABELS: Record<ProspectSource, string> = {
   booth: "Booth",
   live_tiktok: "Live TikTok",
@@ -111,6 +125,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Home" },
   { href: "/bulletin", label: "Bulletin" },
+  { href: "/marketing", label: "Marketing Kit" },
   { href: "/my-onboarding", label: "My Onboarding" },
   { href: "/my-goal", label: "My Goal" },
   { href: "/team", label: "My Team" },

@@ -158,6 +158,36 @@ export interface BulletinEntry {
   publishAt: string;
 }
 
+// --- Marketing Kit ------------------------------------------------------------
+
+/** Marketing Kit groupings (agreed 2026-10-23). Video is a kind, not a category, so "videos only" works across all of them. */
+export const MARKETING_CATEGORIES = ["awareness", "events", "talks", "testimonials", "festive"] as const;
+export type MarketingCategory = (typeof MARKETING_CATEGORIES)[number];
+export const MARKETING_KINDS = ["poster", "video", "pdf"] as const;
+export type MarketingKind = (typeof MARKETING_KINDS)[number];
+
+/** One shareable item — a poster/image or PDF uploaded via /api/upload, or a link to a video elsewhere (YouTube, TikTok…). Group Admins post; everyone shares. */
+export interface MarketingDoc {
+  title: string;
+  category: MarketingCategory;
+  kind: MarketingKind;
+  /** Ready-to-paste text for WhatsApp / social posts. */
+  caption: string | null;
+  /** Poster image or PDF (Storage download URL); null for videos. */
+  fileUrl: string | null;
+  fileName: string | null;
+  /** Video page link; null for posters/PDFs. */
+  videoUrl: string | null;
+  createdBy: string;
+  createdAt: unknown;
+}
+
+/** Client-safe Marketing Kit item: createdAt as an ISO string. */
+export interface MarketingEntry extends Omit<MarketingDoc, "createdAt" | "createdBy"> {
+  id: string;
+  createdAt: string;
+}
+
 export type ContestSection = "wasiyyah" | "kausar";
 
 /** One row of a contest's target table — free-form so it can represent per-rank/individual-vs-kumpulan tiers without a fixed schema (e.g. "Dai'e Mawarith (Individu)" -> 100000). */

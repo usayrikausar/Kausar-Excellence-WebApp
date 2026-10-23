@@ -1,13 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/session";
-import { adminBucket, adminDb } from "@/lib/firebase/admin";
-
-/** The Storage path inside a Firebase download URL (…/o/<encoded path>?alt=media&token=…), if it points at our bucket. */
-function storagePathFromUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  const match = url.match(/\/b\/([^/]+)\/o\/([^?]+)/);
-  if (!match || match[1] !== adminBucket.name) return null;
-  return decodeURIComponent(match[2]);
-}
+import { adminDb } from "@/lib/firebase/admin";
+import { deleteStorageFiles } from "@/lib/storage-path";
 
 // Deletes a bulletin post and its image / PDF files. Group Admins only —
 // done on the server so the files go with the post (the browser can't
@@ -23,9 +16,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!snap.exists) return Response.json({ ok: true }); // already gone
 
   const data = snap.data()!;
-  for (const path of [storagePathFromUrl(data.imageUrl), storagePathFromUrl(data.attachmentUrl)]) {
-    if (path) await adminBucket.file(path).delete({ ignoreNotFound: true });
-  }
+  await deleteStorageFiles([data.imageUrl, data.attachmentUrl]);
   await ref.delete();
   return Response.json({ ok: true });
 }

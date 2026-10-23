@@ -14,8 +14,8 @@ export function imageSizeNote(file: File | null, kind: "image" | "pdf" = "image"
  * direct browser-to-Storage upload) and returns its download URL. Throws an
  * Error whose message is safe to show the user.
  */
-/** Bulletins also accept a PDF (memo); the server enforces which types each folder allows. */
-export async function uploadImage(folder: "bulletins" | "contests", file: File): Promise<string> {
+/** Bulletins and the Marketing Kit also accept a PDF; the server enforces which types each folder allows. */
+export async function uploadImage(folder: "bulletins" | "contests" | "marketing", file: File): Promise<string> {
   const body = new FormData();
   body.set("folder", folder);
   body.set("file", file);

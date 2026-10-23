@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getCurrentUser } from "@/lib/auth/session";
 import { adminBucket } from "@/lib/firebase/admin";
 
-// Image uploads (bulletin images, contest posters) go through the server
+// Image uploads (bulletin images, contest posters, Marketing Kit files) go through the server
 // rather than straight from the browser to Firebase Storage: the browser
 // upload depended on the phone's own Firebase login reaching Storage, and
 // failed silently on the live site ("Could not publish") with nothing ever
@@ -12,7 +12,9 @@ import { adminBucket } from "@/lib/firebase/admin";
 // Group Admins only — the same people firestore.rules / storage.rules let
 // write bulletins and contests.
 
-const FOLDERS = new Set(["bulletins", "contests"]);
+const FOLDERS = new Set(["bulletins", "contests", "marketing"]);
+// Folders that also take a PDF (memos, brochures); contest posters are images only.
+const PDF_FOLDERS = new Set(["bulletins", "marketing"]);
 const MAX_BYTES = 15 * 1024 * 1024; // keep in step with MAX_IMAGE_MB in lib/upload-image.ts
 
 export async function POST(request: Request) {
@@ -25,10 +27,9 @@ export async function POST(request: Request) {
   const file = form.get("file");
   if (!FOLDERS.has(folder)) return Response.json({ error: "Unknown upload folder." }, { status: 400 });
   if (!(file instanceof File) || file.size === 0) return Response.json({ error: "No image was attached." }, { status: 400 });
-  // Bulletins can also carry a PDF (memos); contest posters are images only.
   const isPdf = file.type === "application/pdf";
-  if (!file.type.startsWith("image/") && !(isPdf && folder === "bulletins")) {
-    return Response.json({ error: folder === "bulletins" ? "Only images or PDF files can be uploaded." : "Only image files can be uploaded." }, { status: 400 });
+  if (!file.type.startsWith("image/") && !(isPdf && PDF_FOLDERS.has(folder))) {
+    return Response.json({ error: PDF_FOLDERS.has(folder) ? "Only images or PDF files can be uploaded." : "Only image files can be uploaded." }, { status: 400 });
   }
   if (file.size > MAX_BYTES) return Response.json({ error: `The ${isPdf ? "PDF" : "image"} is larger than 15 MB. Choose a smaller one.` }, { status: 413 });
 
