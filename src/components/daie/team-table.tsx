@@ -14,14 +14,14 @@ import { contractExpiryDate, daysUntilExpiry, isExpiryReminderDue, formatDate, f
 /** Status filter — "expiring6"/"expiring3" match the Home renewal reminder (6 and 3 months out). */
 export type TeamStatusFilter = "all" | "active" | "expired" | "expiring6" | "expiring3";
 export const TEAM_STATUS_FILTERS: TeamStatusFilter[] = ["all", "active", "expired", "expiring6", "expiring3"];
-const STATUS_FILTER_LABELS: Record<TeamStatusFilter, string> = {
+export const STATUS_FILTER_LABELS: Record<TeamStatusFilter, string> = {
   all: "All",
   active: "Active",
   expired: "Expired",
   expiring6: "Expiring within 6 months",
   expiring3: "Expiring within 3 months",
 };
-function matchesStatus(member: CurrentUser, filter: TeamStatusFilter): boolean {
+export function matchesStatus(member: CurrentUser, filter: TeamStatusFilter): boolean {
   switch (filter) {
     case "all":
       return true;
@@ -86,11 +86,14 @@ export function TeamTable({
   showUnit,
   units,
   initialStatus = "all",
+  hideStatusFilter = false,
 }: {
   team: TeamMember[];
   rootUid: string | null;
   /** Status filter to open with — e.g. "expiring6" when arriving from Home's renewal reminder. */
   initialStatus?: TeamStatusFilter;
+  /** The status filter is shown by the parent instead (TeamView puts it beside Tree / List). */
+  hideStatusFilter?: boolean;
   /** Names for uplines who aren't in `team` themselves (e.g. a unit's KDE whose introducer sits in another unit). */
   outsideNames?: Record<string, string>;
   viewerName: string;
@@ -154,6 +157,7 @@ export function TeamTable({
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-3 text-sm">
         <div className="flex flex-wrap items-center gap-2">
+          {!hideStatusFilter && (<>
           <span className="text-muted-foreground">Status</span>
           <Select
             value={status}
@@ -174,6 +178,7 @@ export function TeamTable({
               ))}
             </SelectContent>
           </Select>
+          </>)}
           <span className="text-muted-foreground">
             {sorted.length === 0 ? "No one matches" : `Showing ${(clampedPage - 1) * pageSize + 1}–${Math.min(clampedPage * pageSize, sorted.length)} of ${sorted.length}`}
           </span>

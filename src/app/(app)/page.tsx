@@ -106,7 +106,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
       )}
 
-      <ExpiryRemindersCard self={user} downline={reminderMembers} />
+      <ExpiryRemindersCard self={user} downline={reminderMembers} where={user.isGroupAdmin ? "in Kausar Group" : undefined} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiTile label="My sales total" value={formatRM(personalSalesTotal)} icon={BadgeDollarSign} accent="primary" />

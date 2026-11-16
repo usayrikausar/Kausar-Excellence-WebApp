@@ -18,7 +18,7 @@ import type { CurrentUser } from "@/lib/types";
  * "Date expiry" column — this card just points there with a count so
  * nothing gets missed without listing every name twice.
  */
-export function ExpiryRemindersCard({ self, downline }: { self: CurrentUser; downline: CurrentUser[] }) {
+export function ExpiryRemindersCard({ self, downline, where = "in your team" }: { self: CurrentUser; downline: CurrentUser[]; /** e.g. "in Kausar Group" for Group Admins, whose downline is everyone. */ where?: string }) {
   const selfDue = isExpiryReminderDue(self);
   const downlineDueCount = downline.filter(isExpiryReminderDue).length;
 
@@ -42,7 +42,7 @@ export function ExpiryRemindersCard({ self, downline }: { self: CurrentUser; dow
 
         {downlineDueCount > 0 && (
           <p className="text-sm text-ink">
-            <span className="font-semibold">{downlineDueCount}</span> {downlineDueCount === 1 ? "person" : "people"} in your team
+            <span className="font-semibold">{downlineDueCount}</span> {downlineDueCount === 1 ? "person" : "people"} {where}
             {downlineDueCount === 1 ? " has" : " have"} a contract expiring within 6 months.
           </p>
         )}

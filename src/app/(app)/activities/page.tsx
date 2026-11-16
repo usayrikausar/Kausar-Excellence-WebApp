@@ -50,7 +50,7 @@ export default async function ActivitiesPage({
     getProspectsForUid(user.uid),
     getScopeMembers(user, scope),
     getUnits(),
-    getSaleEntriesForUids([user.uid]),
+    getSaleEntriesForUids([user.uid], { includeSuperseded: true }),
   ]);
   // Individual reports are only for people the viewer may open by name: in a
   // KDE's "Overall" view that's still just their own unit.

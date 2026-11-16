@@ -249,6 +249,27 @@ function applySaleToTotals(totals: SalesTotals, sale: SaleDoc): void {
   }
 }
 
+/** Tag on sales written by the monthly Konvensyen sheet import (scripts/import-perancangan-monthly-production.mjs). */
+const SHEET_IMPORT_SOURCE = "konvensyen-monthly-import";
+
+/**
+ * "The sheet replaces the app" (agreed 2026-11-16): Perancangan a daie records
+ * in the app counts straight away, but once the official sheet import covers
+ * that daie for that month, the sheet figure is used instead — so a case in
+ * both is counted once. Pengurusan and Kes Pusaka aren't in the sheet, so app
+ * entries for those always count. Drops the superseded app entries.
+ */
+function withoutSupersededSales(docs: QueryDocumentSnapshot<DocumentData>[]): QueryDocumentSnapshot<DocumentData>[] {
+  const monthOf = (doc: QueryDocumentSnapshot<DocumentData>) =>
+    (doc.get("sourceMonth") as string | undefined) ?? (doc.get("date") as { toDate: () => Date }).toDate().toISOString().slice(0, 7);
+  const covered = new Set(
+    docs.filter((d) => d.get("source") === SHEET_IMPORT_SOURCE).map((d) => `${d.get("uid")}|${monthOf(d)}`),
+  );
+  return docs.filter(
+    (d) => d.get("category") !== "perancangan" || d.get("source") === SHEET_IMPORT_SOURCE || !covered.has(`${d.get("uid")}|${monthOf(d)}`),
+  );
+}
+
 /**
  * Sales + collection totals for MANY daie in one batch — 2 queries per 30
  * uids (Firestore's "in" cap) instead of 2 queries PER PERSON. My Team and
@@ -272,12 +293,10 @@ export async function getSalesTotalsForUids(uids: string[]): Promise<Map<string,
     Promise.all(chunks.map((chunk) => adminDb.collection("collections").where("uid", "in", chunk).get())),
   ]);
 
-  for (const snap of salesSnaps) {
-    snap.forEach((doc) => {
-      const sale = doc.data() as SaleDoc;
-      const t = totals.get(sale.uid);
-      if (t) applySaleToTotals(t, sale);
-    });
+  for (const doc of withoutSupersededSales(salesSnaps.flatMap((snap) => snap.docs))) {
+    const sale = doc.data() as SaleDoc;
+    const t = totals.get(sale.uid);
+    if (t) applySaleToTotals(t, sale);
   }
   for (const snap of collectionsSnaps) {
     snap.forEach((doc) => {
@@ -309,8 +328,11 @@ function toSaleEntry(doc: QueryDocumentSnapshot<DocumentData>): SaleEntry {
   };
 }
 
-/** Every individual sale entry for one or more daie — for month-by-month breakdowns, "biggest case," and ranking views that a single aggregated total can't answer. */
-export async function getSaleEntriesForUids(uids: string[]): Promise<SaleEntry[]> {
+/**
+ * Every individual sale entry for one or more daie — for month-by-month breakdowns, "biggest case," and ranking views that a single aggregated total can't answer.
+ * Leaves out app entries the sheet has replaced (see withoutSupersededSales) unless `includeSuperseded` — e.g. the Clients list, which shows every case recorded.
+ */
+export async function getSaleEntriesForUids(uids: string[], { includeSuperseded = false } = {}): Promise<SaleEntry[]> {
   if (uids.length === 0) return [];
   // Firestore "in" queries cap at 30 values — chunk for large teams (KDE
   // downlines can run into the hundreds).
@@ -320,7 +342,8 @@ export async function getSaleEntriesForUids(uids: string[]): Promise<SaleEntry[]
   const results = await Promise.all(
     chunks.map((chunk) => adminDb.collection("sales").where("uid", "in", chunk).get()),
   );
-  return results.flatMap((snap) => snap.docs.map(toSaleEntry));
+  const docs = results.flatMap((snap) => snap.docs);
+  return (includeSuperseded ? docs : withoutSupersededSales(docs)).map(toSaleEntry);
 }
 
 function toCollectionEntry(doc: QueryDocumentSnapshot<DocumentData>): CollectionEntry {
@@ -411,18 +434,18 @@ let unitSalesCache: { at: number; sales: UnitSale[]; collections: CollectionWith
 async function loadSalesWithUnit(): Promise<{ sales: UnitSale[]; collections: CollectionWithUnit[] }> {
   if (unitSalesCache && Date.now() - unitSalesCache.at < UNIT_SALES_CACHE_MS) return unitSalesCache;
   const [salesSnap, collectionsSnap, usersSnap] = await Promise.all([
-    adminDb.collection("sales").select("uid", "unitId", "category", "subCategory", "amount", "count", "date").get(),
+    adminDb.collection("sales").select("uid", "unitId", "category", "subCategory", "amount", "count", "date", "source", "sourceMonth").get(),
     adminDb.collection("collections").select("uid", "amountCollected").get(),
     adminDb.collection("users").select("unitId").get(),
   ]);
   const unitByUid = new Map(usersSnap.docs.map((d) => [d.id, d.get("unitId") as string]));
   const sales: UnitSale[] = [];
-  salesSnap.forEach((doc) => {
+  for (const doc of withoutSupersededSales(salesSnap.docs)) {
     const data = doc.data() as SaleDoc;
     const unitId = data.unitId ?? unitByUid.get(data.uid);
-    if (!unitId) return;
+    if (!unitId) continue;
     sales.push({ ...toSaleEntry(doc), unitId });
-  });
+  }
   const collections: CollectionWithUnit[] = [];
   collectionsSnap.forEach((doc) => {
     const data = doc.data() as CollectionDoc;
