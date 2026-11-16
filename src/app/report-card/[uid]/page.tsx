@@ -21,23 +21,9 @@ import { formatRM, formatDate, contractExpiryDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { ReportCardPrintButton } from "@/components/daie/report-card-print-button";
 import { ReportCardMonthSelect } from "@/components/daie/report-card-month-select";
+import { ReportPeriodSelect } from "@/components/daie/report-period-select";
+import { inPeriod, monthLabel, periodLabel, periodMonths, resolvePeriod, shiftMonth } from "@/lib/period";
 import type { ContestTarget } from "@/lib/types";
-
-function monthLabel(monthKey: MonthKey) {
-  const [y, m] = monthKey.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("en-MY", { month: "long", year: "numeric" });
-}
-
-function shiftMonth(monthKey: MonthKey, delta: number): MonthKey {
-  const [y, m] = monthKey.split("-").map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-/** Oldest → newest, ending at (and including) monthKey. */
-function trailingMonths(monthKey: MonthKey, count: number): MonthKey[] {
-  return Array.from({ length: count }, (_, i) => shiftMonth(monthKey, -(count - 1 - i)));
-}
 
 function initials(name: string) {
   const words = name.replace(/\(.*?\)/g, "").trim().split(/\s+/);
@@ -122,10 +108,11 @@ export default async function ReportCardPage({
   searchParams,
 }: {
   params: Promise<{ uid: string }>;
-  searchParams: Promise<{ month?: string; view?: string }>;
+  searchParams: Promise<{ month?: string; period?: string; from?: string; to?: string; view?: string }>;
 }) {
   const { uid } = await params;
-  const { month: monthParam, view: viewParam } = await searchParams;
+  const query = await searchParams;
+  const viewParam = query.view;
   // "sales" is printed from My Sales & Collection, "activities" from
   // Activities; no view = the full combined card.
   const view = viewParam === "sales" || viewParam === "activities" ? viewParam : "full";
@@ -140,8 +127,14 @@ export default async function ReportCardPage({
   const canView = canViewDaie(viewer, target);
   if (!canView) redirect("/");
 
-  const monthKey: MonthKey = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonthKey();
-  const last3 = trailingMonths(monthKey, 3);
+  // Sales cards take a period (a month, a quick pick or a custom range); the
+  // activity card stays monthly — the traffic light is a monthly score. On the
+  // full card the traffic light uses the period's last month.
+  const period = resolvePeriod(view === "activities" ? { month: query.month } : query, currentMonthKey());
+  const single = period.kind === "month";
+  const monthKey: MonthKey = period.to;
+  const months = periodMonths(period);
+  const trendMonths = single ? [-2, -1, 0].map((d) => shiftMonth(monthKey, d)) : months;
 
   const [score, saleEntries, collectionEntries, goal, contests, progress, units, upline, salesSummary] = await Promise.all([
     getMonthlyScoreForUid(uid, monthKey),
@@ -155,7 +148,7 @@ export default async function ReportCardPage({
     getSalesSummary(target),
   ]);
 
-  const monthSales = saleEntries.filter((e) => e.date.slice(0, 7) === monthKey);
+  const monthSales = saleEntries.filter((e) => inPeriod(e.date, period));
   const perancangan = monthSales.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0);
   const berlianCount = monthSales.filter((e) => e.category === "pengurusan" && e.subCategory === "berlian").reduce((s, e) => s + (e.count ?? 0), 0);
   const mutiaraCount = monthSales.filter((e) => e.category === "pengurusan" && e.subCategory === "mutiara").reduce((s, e) => s + (e.count ?? 0), 0);
@@ -163,7 +156,7 @@ export default async function ReportCardPage({
   const pusakaKecil = monthSales.filter((e) => e.category === "kesPusaka" && e.subCategory === "kecil").reduce((s, e) => s + (e.amount ?? 0), 0);
   const periodTotal = perancangan + pusakaBesar + pusakaKecil;
 
-  const monthCollection = collectionEntries.filter((e) => e.date.slice(0, 7) === monthKey).reduce((s, e) => s + e.amountCollected, 0);
+  const monthCollection = collectionEntries.filter((e) => inPeriod(e.date, period)).reduce((s, e) => s + e.amountCollected, 0);
 
   // Group = this daie + their whole downline, for the SAME month as the
   // personal figures above (career-to-date stays alongside for reference).
@@ -172,14 +165,14 @@ export default async function ReportCardPage({
   const [groupSaleEntries, groupCollectionEntries] = downline.length
     ? await Promise.all([getSaleEntriesForUids(groupUids), getCollectionEntriesForUids(groupUids)])
     : [[], []];
-  const groupMonth = groupSaleEntries.filter((e) => e.date.slice(0, 7) === monthKey);
+  const groupMonth = groupSaleEntries.filter((e) => inPeriod(e.date, period));
   const sumAmount = (list: typeof groupMonth, cat: string, sub?: string) =>
     list.filter((e) => e.category === cat && (!sub || e.subCategory === sub)).reduce((s, e) => s + (e.amount ?? 0), 0);
   const sumCount = (list: typeof groupMonth, sub: string) =>
     list.filter((e) => e.category === "pengurusan" && e.subCategory === sub).reduce((s, e) => s + (e.count ?? 0), 0);
-  const groupMonthCollection = groupCollectionEntries.filter((e) => e.date.slice(0, 7) === monthKey).reduce((s, e) => s + e.amountCollected, 0);
+  const groupMonthCollection = groupCollectionEntries.filter((e) => inPeriod(e.date, period)).reduce((s, e) => s + e.amountCollected, 0);
 
-  const trend = last3.map((mk) => ({
+  const trend = trendMonths.map((mk) => ({
     monthKey: mk,
     total: saleEntries
       .filter((e) => e.date.slice(0, 7) === mk && (e.category === "perancangan" || e.category === "kesPusaka"))
@@ -191,7 +184,10 @@ export default async function ReportCardPage({
 
   const progressByContest = new Map(progress.map((p) => [p.contestId, p.amount]));
   const expiry = contractExpiryDate(target);
-  const salesGoalPct = goal?.salesGoal ? Math.min(100, Math.round((periodTotal / goal.salesGoal) * 100)) : 0;
+  // My Goal is a monthly figure; over a range it scales with the number of months.
+  const periodGoal = goal?.salesGoal ? goal.salesGoal * months.length : 0;
+  const salesGoalPct = periodGoal ? Math.min(100, Math.round((periodTotal / periodGoal) * 100)) : 0;
+  const bestMonth = trend.reduce((b, t) => (t.total > b.total ? t : b), trend[0]);
   const collectionPct = periodTotal > 0 ? Math.min(100, Math.round((monthCollection / periodTotal) * 100)) : 0;
 
   return (
@@ -201,7 +197,11 @@ export default async function ReportCardPage({
           <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Report card
         </span>
         <div className="flex items-center gap-2">
-          <ReportCardMonthSelect basePath={`/report-card/${uid}`} monthKey={monthKey} />
+          {view === "activities" ? (
+            <ReportCardMonthSelect basePath={`/report-card/${uid}`} monthKey={monthKey} />
+          ) : (
+            <ReportPeriodSelect basePath={`/report-card/${uid}`} period={period} />
+          )}
           <ReportCardPrintButton />
         </div>
       </div>
@@ -219,7 +219,7 @@ export default async function ReportCardPage({
           </div>
           <div className="flex shrink-0 flex-col gap-0.5 whitespace-nowrap text-right text-xs text-navy-100">
             <span className="text-xs font-semibold text-white">Period</span>
-            <span>{monthLabel(monthKey)}</span>
+            <span>{periodLabel(period)}</span>
             <span className="mt-1.5 text-xs font-semibold text-white">Prepared by</span>
             <span>{viewer.name}, {viewer.rank}</span>
             <span className="mt-1.5 text-xs font-semibold text-white">Generated</span>
@@ -247,7 +247,7 @@ export default async function ReportCardPage({
 
         {showActivities && (
         <div className="border-b border-border px-9 py-5 print:break-inside-avoid">
-          <SectionTitle hint="Behaviour score · 5 criteria, 20 pts each">Monthly traffic light</SectionTitle>
+          <SectionTitle hint={single ? "Behaviour score · 5 criteria, 20 pts each" : `Behaviour score · ${monthLabel(monthKey)} (last month of the period)`}>Monthly traffic light</SectionTitle>
           <div className="grid grid-cols-[150px_1fr] items-center gap-6">
             <div className="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-border bg-muted p-4 text-center">
               <span className={cn("h-[30px] w-[30px] rounded-full border-[3px] border-white shadow-[0_0_0_1px_var(--color-border)]", TRAFFIC_LIGHT_STYLES[score.color].dotClassName)} />
@@ -275,18 +275,28 @@ export default async function ReportCardPage({
           <SectionTitle hint="This period vs. goal">Sales performance</SectionTitle>
           <div className="mb-4 grid grid-cols-3 gap-3.5">
             {goal?.salesGoal ? (
-              <GoalCard label="Personal sales goal" amount={formatRM(periodTotal)} sub={`/ ${formatRM(goal.salesGoal)}`} pct={salesGoalPct} pctLabel={`${salesGoalPct}% of monthly goal`} barColor="bg-primary" />
+              <GoalCard label="Personal sales goal" amount={formatRM(periodTotal)} sub={`/ ${formatRM(periodGoal)}`} pct={salesGoalPct} pctLabel={single ? `${salesGoalPct}% of monthly goal` : `${salesGoalPct}% of goal for ${months.length} months`} barColor="bg-primary" />
             ) : (
               <GoalCard label="Personal sales goal" amount="No goal set" pct={0} pctLabel="Set one on My Goal" barColor="bg-muted-foreground" />
             )}
             <GoalCard label="Collection this period" amount={formatRM(monthCollection)} pct={collectionPct} pctLabel={`${collectionPct}% of sales collected`} barColor="bg-success" />
-            <GoalCard
-              label="3-month trend"
-              amount={trend[2].total >= trend[1].total ? `↑ this month` : `↓ this month`}
-              pct={maxTrend > 0 ? Math.round((trend[2].total / maxTrend) * 100) : 0}
-              pctLabel={`${monthLabel(trend[1].monthKey)} → ${monthLabel(trend[2].monthKey)}`}
-              barColor={trend[2].total >= trend[1].total ? "bg-success" : "bg-red-600"}
-            />
+            {single ? (
+              <GoalCard
+                label="3-month trend"
+                amount={trend[2].total >= trend[1].total ? `↑ this month` : `↓ this month`}
+                pct={maxTrend > 0 ? Math.round((trend[2].total / maxTrend) * 100) : 0}
+                pctLabel={`${monthLabel(trend[1].monthKey)} → ${monthLabel(trend[2].monthKey)}`}
+                barColor={trend[2].total >= trend[1].total ? "bg-success" : "bg-red-600"}
+              />
+            ) : (
+              <GoalCard
+                label="Monthly average"
+                amount={formatRM(periodTotal / months.length)}
+                pct={maxTrend > 0 ? Math.round((periodTotal / months.length / maxTrend) * 100) : 0}
+                pctLabel={`Best: ${monthLabel(bestMonth.monthKey)} · ${formatRM(bestMonth.total)}`}
+                barColor="bg-primary"
+              />
+            )}
           </div>
 
           <table className="mb-1 w-full border-collapse text-[12.5px]">
@@ -310,11 +320,11 @@ export default async function ReportCardPage({
           <div className="mt-4 flex items-end gap-0">
             {trend.map((t) => (
               <div key={t.monthKey} className="flex flex-1 flex-col items-center gap-1.5">
-                <div className="text-[11px] font-bold text-ink">{formatRM(t.total)}</div>
+                {trend.length <= 6 && <div className="text-[11px] font-bold text-ink">{formatRM(t.total)}</div>}
                 <div className="flex h-[70px] w-full max-w-[46px] items-end">
-                  <div className={cn("w-full rounded-t", t.monthKey === monthKey ? "bg-primary" : "bg-navy-300")} style={{ height: `${maxTrend > 0 ? Math.max(4, Math.round((t.total / maxTrend) * 100)) : 4}%` }} />
+                  <div className={cn("w-full rounded-t", single && t.monthKey === monthKey ? "bg-primary" : "bg-navy-300")} style={{ height: `${maxTrend > 0 ? Math.max(4, Math.round((t.total / maxTrend) * 100)) : 4}%` }} />
                 </div>
-                <div className="text-[10.5px] text-muted-foreground">{monthLabel(t.monthKey)}{t.monthKey === monthKey ? " (this period)" : ""}</div>
+                <div className="text-[10.5px] text-muted-foreground">{trend.length <= 6 ? monthLabel(t.monthKey) : monthLabel(t.monthKey, "short")}{single && t.monthKey === monthKey ? " (this period)" : ""}</div>
               </div>
             ))}
           </div>
@@ -322,7 +332,7 @@ export default async function ReportCardPage({
 
         {salesSummary.groupTotals && (
           <div className="border-b border-border px-9 py-5 print:break-inside-avoid print:break-before-page">
-            <SectionTitle hint={`${monthLabel(monthKey)} · ${salesSummary.groupStatusCounts?.active ?? 0} active downline`}>Personal &amp; group production</SectionTitle>
+            <SectionTitle hint={`${periodLabel(period)} · ${salesSummary.groupStatusCounts?.active ?? 0} active downline`}>Personal &amp; group production</SectionTitle>
             <table className="w-full border-collapse text-[12.5px]">
               <thead>
                 <tr>

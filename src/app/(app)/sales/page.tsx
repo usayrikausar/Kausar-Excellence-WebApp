@@ -21,20 +21,22 @@ import { KONVENSYEN_PERIOD } from "@/lib/konvensyen";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScopeSwitcher } from "@/components/daie/scope-switcher";
-import { currentMonthKey, type MonthKey } from "@/lib/scoring";
+import { currentMonthKey } from "@/lib/scoring";
+import { inPeriod, periodLabel, resolvePeriod } from "@/lib/period";
 import { PerancanganForm, PengurusanForm, KesPusakaForm } from "@/components/daie/sales-forms";
 import { SalesComparison } from "@/components/daie/sales-totals";
 import { ExportSalesCsvButton } from "@/components/daie/export-sales-csv-button";
 import { SalesTrackingCard } from "@/components/daie/sales-tracking-card";
 import { DaiePicker } from "@/components/daie/daie-picker";
-import { ReportCardMonthSelect } from "@/components/daie/report-card-month-select";
+import { ReportPeriodSelect } from "@/components/daie/report-period-select";
 
-export default async function SalesPage({ searchParams }: { searchParams: Promise<{ month?: string; daie?: string; scope?: string }> }) {
+export default async function SalesPage({ searchParams }: { searchParams: Promise<{ month?: string; period?: string; from?: string; to?: string; daie?: string; scope?: string }> }) {
   const user = await requireDaie();
-  const { month: monthParam, daie: daieParam, scope: scopeParamValue } = await searchParams;
+  const params = await searchParams;
+  const { daie: daieParam, scope: scopeParamValue } = params;
   const scope = resolveViewScope(user, scopeParamValue);
   const totalsOnly = scope.kind === "overall";
-  const monthKey: MonthKey = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonthKey();
+  const period = resolvePeriod(params, currentMonthKey());
 
   const [{ personalTotals, groupTotals, groupStatusCounts }, allProspects, downline] = await Promise.all([
     getSalesSummary(user),
@@ -54,8 +56,19 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const viewedDownline = viewed.uid === user.uid ? pickable : await getDownline(viewed);
   // Same FY-start window Home's dashboard asks for, so both share one cached read.
   const fyStart = KONVENSYEN_PERIOD.start.slice(0, 7);
+  // Per unit, summed over the period (one row per unit).
   const unitMonthRows = totalsOnly
-    ? (await getGroupSalesByMonth(monthKey < fyStart ? monthKey : fyStart)).filter((r) => r.monthKey === monthKey)
+    ? Object.values(
+        (await getGroupSalesByMonth(period.from < fyStart ? period.from : fyStart))
+          .filter((r) => inPeriod(`${r.monthKey}-01`, period))
+          .reduce<Record<string, { unitId: string; perancangan: number; pengurusan: number; pusaka: number }>>((acc, r) => {
+            const u = (acc[r.unitId] ??= { unitId: r.unitId, perancangan: 0, pengurusan: 0, pusaka: 0 });
+            u.perancangan += r.perancangan;
+            u.pengurusan += r.pengurusan;
+            u.pusaka += r.pusaka;
+            return acc;
+          }, {}),
+      )
     : null;
   const groupUids = viewedDownline.length > 0 ? [viewed.uid, ...viewedDownline.map((m) => m.uid)] : null;
   const [viewedEntries, viewedCollections, viewedGoal, groupEntries, groupCollections] = await Promise.all([
@@ -93,22 +106,20 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
           <div>
             <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-ink">Sales report card</h2>
             <p className="text-sm text-muted-foreground">
-              {pickable.length > 0 ? "Track your own sales or pick anyone in your team." : "Your sales for the month you choose."}
+              {pickable.length > 0 ? "Track your own sales or pick anyone in your team." : "Your sales for the month or period you choose."}
             </p>
           </div>
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             {pickable.length > 0 && (
               <DaiePicker basePath="/sales" selfUid={user.uid} selectedUid={viewed.uid} options={pickerOptions} />
             )}
-            <div className="w-48">
-              <ReportCardMonthSelect basePath="/sales" monthKey={monthKey} />
-            </div>
+            <ReportPeriodSelect basePath="/sales" period={period} />
           </div>
         </div>
         <SalesTrackingCard
           uid={viewed.uid}
           name={viewed.uid === user.uid ? `${viewed.name} (me)` : `${viewed.name} · ${viewed.daieId} · ${viewed.rank}`}
-          monthKey={monthKey}
+          period={period}
           entries={viewedEntries}
           collections={viewedCollections}
           groupEntries={groupEntries}
@@ -119,7 +130,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
         {unitMonthRows && (
           <Card>
             <CardHeader>
-              <CardTitle>Kausar Group by unit · this month</CardTitle>
+              <CardTitle>Kausar Group by unit · {periodLabel(period)}</CardTitle>
             </CardHeader>
             <CardContent className="overflow-x-auto p-0">
               <Table>

@@ -4,18 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ProgressBar } from "@/components/daie/progress-bar";
 import { cn, formatRM } from "@/lib/utils";
 import type { CollectionEntry, SaleEntry } from "@/lib/types";
-import type { MonthKey } from "@/lib/scoring";
-
-function monthLabel(monthKey: MonthKey, style: "long" | "short" = "long") {
-  const [y, m] = monthKey.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("en-MY", { month: style, year: style === "long" ? "numeric" : "2-digit" });
-}
-
-function shiftMonth(monthKey: MonthKey, delta: number): MonthKey {
-  const [y, m] = monthKey.split("-").map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
+import { inPeriod, monthLabel, periodLabel, periodMonths, periodQuery, shiftMonth, type Period } from "@/lib/period";
 
 interface MonthFigures {
   perancangan: number;
@@ -25,8 +14,8 @@ interface MonthFigures {
   pusakaKecil: number;
 }
 
-function figuresFor(entries: SaleEntry[], monthKey: MonthKey): MonthFigures {
-  const month = entries.filter((e) => e.date.slice(0, 7) === monthKey);
+function figuresFor(entries: SaleEntry[], period: Period): MonthFigures {
+  const month = entries.filter((e) => inPeriod(e.date, period));
   const sum = (pred: (e: SaleEntry) => boolean, field: "amount" | "count") =>
     month.filter(pred).reduce((s, e) => s + (e[field] ?? 0), 0);
   return {
@@ -41,7 +30,7 @@ function figuresFor(entries: SaleEntry[], monthKey: MonthKey): MonthFigures {
 const rmTotal = (f: MonthFigures) => f.perancangan + f.pusakaBesar + f.pusakaKecil;
 
 /**
- * On-screen sales tracking for one daie and one month — the sales half of
+ * On-screen sales tracking for one daie and one period (a month or a range of months) — the sales half of
  * the printable report card, moved onto My Sales & Collection so an
  * upline/mentor can follow a daie's sales without leaving the tab. "Group"
  * figures are the daie plus their whole downline.
@@ -49,7 +38,7 @@ const rmTotal = (f: MonthFigures) => f.perancangan + f.pusakaBesar + f.pusakaKec
 export function SalesTrackingCard({
   uid,
   name,
-  monthKey,
+  period,
   entries,
   collections,
   groupEntries,
@@ -58,7 +47,7 @@ export function SalesTrackingCard({
 }: {
   uid: string;
   name: string;
-  monthKey: MonthKey;
+  period: Period;
   entries: SaleEntry[];
   collections: CollectionEntry[];
   /** Sale entries for the daie + their whole downline, or null when they have no downline. */
@@ -67,16 +56,19 @@ export function SalesTrackingCard({
   groupCollections?: CollectionEntry[] | null;
   salesGoal: number | null;
 }) {
-  const f = figuresFor(entries, monthKey);
+  const single = period.kind === "month";
+  const months = periodMonths(period);
+  const f = figuresFor(entries, period);
   const total = rmTotal(f);
-  const collected = collections.filter((c) => c.date.slice(0, 7) === monthKey).reduce((s, c) => s + c.amountCollected, 0);
-  const trend = [-2, -1, 0].map((d) => {
-    const mk = shiftMonth(monthKey, d);
-    return { monthKey: mk, total: rmTotal(figuresFor(entries, mk)) };
-  });
+  const collected = collections.filter((c) => inPeriod(c.date, period)).reduce((s, c) => s + c.amountCollected, 0);
+  // One month: that month and the two before it. A range: every month in it.
+  const trendMonths = single ? [-2, -1, 0].map((d) => shiftMonth(period.to, d)) : months;
+  const trend = trendMonths.map((mk) => ({ monthKey: mk, total: rmTotal(figuresFor(entries, { kind: "month", from: mk, to: mk })) }));
   const maxTrend = Math.max(1, ...trend.map((t) => t.total));
-  const group = groupEntries ? figuresFor(groupEntries, monthKey) : null;
-  const groupCollected = (groupCollections ?? []).filter((c) => c.date.slice(0, 7) === monthKey).reduce((s, c) => s + c.amountCollected, 0);
+  const group = groupEntries ? figuresFor(groupEntries, period) : null;
+  const groupCollected = (groupCollections ?? []).filter((c) => inPeriod(c.date, period)).reduce((s, c) => s + c.amountCollected, 0);
+  const label = periodLabel(period);
+  const when = single ? "this month" : "this period";
 
   const rows: Array<{ label: string; personal: string; group?: string }> = [
     { label: "Perancangan", personal: formatRM(f.perancangan), group: group ? formatRM(group.perancangan) : undefined },
@@ -91,11 +83,11 @@ export function SalesTrackingCard({
       <CardContent className="space-y-5 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-ink">Sales tracking · {monthLabel(monthKey)}</h2>
+            <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-ink">Sales tracking · {label}</h2>
             <p className="truncate text-sm text-muted-foreground">{name}</p>
           </div>
           <Link
-            href={`/report-card/${uid}?month=${monthKey}&view=sales`}
+            href={`/report-card/${uid}?${periodQuery(period)}&view=sales`}
             target="_blank"
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-muted"
           >
@@ -105,26 +97,26 @@ export function SalesTrackingCard({
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-border p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sales this month</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sales {when}</p>
             <p className="font-[family-name:var(--font-display)] text-xl font-extrabold text-ink">{formatRM(total)}</p>
             <p className="text-xs text-muted-foreground">Perancangan + Kes Pusaka</p>
           </div>
           <div className="rounded-lg border border-border p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Collected this month</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Collected {when}</p>
             <p className="font-[family-name:var(--font-display)] text-xl font-extrabold text-ink">{formatRM(collected)}</p>
-            <p className="text-xs text-muted-foreground">{total > 0 ? `${Math.min(100, Math.round((collected / total) * 100))}% of sales` : "No sales this month"}</p>
+            <p className="text-xs text-muted-foreground">{total > 0 ? `${Math.min(100, Math.round((collected / total) * 100))}% of sales` : `No sales ${when}`}</p>
           </div>
           <div className="rounded-lg border border-border p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">3-month trend</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{single ? "3-month trend" : "Month by month"}</p>
             <div className="mt-1 flex h-14 items-end gap-2">
               {trend.map((t) => (
                 <div key={t.monthKey} className="flex flex-1 flex-col items-center gap-0.5">
                   <div
-                    className={cn("w-full max-w-[28px] rounded-t", t.monthKey === monthKey ? "bg-primary" : "bg-navy-300")}
+                    className={cn("w-full max-w-[28px] rounded-t", single && t.monthKey === period.to ? "bg-primary" : "bg-navy-300")}
                     style={{ height: `${Math.max(4, Math.round((t.total / maxTrend) * 100))}%` }}
                     title={`${monthLabel(t.monthKey)}: ${formatRM(t.total)}`}
                   />
-                  <span className="text-[10px] text-muted-foreground">{monthLabel(t.monthKey, "short")}</span>
+                  {trend.length <= 6 && <span className="text-[10px] text-muted-foreground">{monthLabel(t.monthKey, "short")}</span>}
                 </div>
               ))}
             </div>
@@ -132,7 +124,13 @@ export function SalesTrackingCard({
         </div>
 
         {salesGoal ? (
-          <ProgressBar label="Monthly sales goal" value={total} max={salesGoal} formatValue={formatRM} accent="success" />
+          <ProgressBar
+            label={single ? "Monthly sales goal" : `Sales goal for ${months.length} months (${formatRM(salesGoal)} a month)`}
+            value={total}
+            max={salesGoal * months.length}
+            formatValue={formatRM}
+            accent="success"
+          />
         ) : (
           <p className="text-sm text-muted-foreground">No personal sales goal set (set on My Goal).</p>
         )}
