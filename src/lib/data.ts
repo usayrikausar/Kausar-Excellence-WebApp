@@ -39,7 +39,7 @@ import { UNIT_LABELS } from "@/lib/constants";
 import { isActiveStatus } from "@/lib/utils";
 import { computeMonthlyScore, type MonthKey, type MonthlyScore } from "@/lib/scoring";
 import { computeDpmPromotionStatus, type DpmPromotionStatus, type RecruitInput } from "@/lib/promotion";
-import { computeKonvensyenProgress, isRookieEligible, isWithinKonvensyenPeriod, type KonvensyenCriterion } from "@/lib/konvensyen";
+import { konvensyenFromSales, type KonvensyenCriterion, type KonvensyenRow } from "@/lib/konvensyen";
 import type { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
 
 /**
@@ -986,14 +986,7 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
       collectionTotal: collectedByUid.get(member.uid) ?? 0,
     };
 
-    const periodEntries = entries.filter((e) => isWithinKonvensyenPeriod(e.date));
-    const konvensyen = computeKonvensyenProgress({
-      alWasitahKesInPeriod: periodEntries.filter((e) => e.category === "pengurusan").reduce((s, e) => s + (e.count ?? 0), 0),
-      pusakaAmountInPeriod: periodEntries.filter((e) => e.category === "kesPusaka").reduce((s, e) => s + (e.amount ?? 0), 0),
-      perancanganInPeriod: periodEntries.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0),
-      hibahInPeriod: periodEntries.filter((e) => e.category === "perancangan" && e.subCategory === "hibah").reduce((s, e) => s + (e.amount ?? 0), 0),
-      rookieEligible: isRookieEligible(member.dateLicensed),
-    });
+    const konvensyen = konvensyenFromSales(entries, member.dateLicensed);
 
     return {
       uid: member.uid,
@@ -1007,6 +1000,32 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
       konvensyenQualified: konvensyen.every((c) => c.met),
     };
   });
+}
+
+// --- Konvensyen & FY report -------------------------------------------------
+
+/**
+ * Award progress for many daie at once, from the cached group-wide sales
+ * (loadSalesWithUnit) rather than a query per person — the Group Admin view
+ * covers everyone. Awards are personal, so every sale a daie made in the
+ * period counts, whichever unit it was booked under.
+ */
+export async function getKonvensyenRows(members: CurrentUser[]): Promise<KonvensyenRow[]> {
+  const { sales } = await loadSalesWithUnit();
+  const byUid = new Map<string, UnitSale[]>();
+  for (const s of sales) {
+    const list = byUid.get(s.uid);
+    if (list) list.push(s);
+    else byUid.set(s.uid, [s]);
+  }
+  return members.map((m) => ({
+    uid: m.uid,
+    name: m.name,
+    daieId: m.daieId,
+    rank: m.rank,
+    unitId: m.unitId,
+    konvensyen: konvensyenFromSales(byUid.get(m.uid) ?? [], m.dateLicensed),
+  }));
 }
 
 // --- CPD & Training -----------------------------------------------------

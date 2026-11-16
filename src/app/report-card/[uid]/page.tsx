@@ -15,7 +15,7 @@ import {
   canViewDaie,
 } from "@/lib/data";
 import { currentMonthKey, TRAFFIC_LIGHT_STYLES, type MonthKey } from "@/lib/scoring";
-import { computeKonvensyenProgress, isRookieEligible, isWithinKonvensyenPeriod, KONVENSYEN_PERIOD } from "@/lib/konvensyen";
+import { isRookieEligible, konvensyenFromSales, KONVENSYEN_PERIOD } from "@/lib/konvensyen";
 import { RANK_LABELS, unitLabel } from "@/lib/constants";
 import { formatRM, formatDate, contractExpiryDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -187,14 +187,7 @@ export default async function ReportCardPage({
   }));
   const maxTrend = Math.max(1, ...trend.map((t) => t.total));
 
-  const periodSales = saleEntries.filter((e) => isWithinKonvensyenPeriod(e.date));
-  const konvensyen = computeKonvensyenProgress({
-    alWasitahKesInPeriod: periodSales.filter((e) => e.category === "pengurusan").reduce((s, e) => s + (e.count ?? 0), 0),
-    pusakaAmountInPeriod: periodSales.filter((e) => e.category === "kesPusaka").reduce((s, e) => s + (e.amount ?? 0), 0),
-    perancanganInPeriod: periodSales.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0),
-    hibahInPeriod: periodSales.filter((e) => e.category === "perancangan" && e.subCategory === "hibah").reduce((s, e) => s + (e.amount ?? 0), 0),
-    rookieEligible: isRookieEligible(target.dateLicensed),
-  });
+  const konvensyen = konvensyenFromSales(saleEntries, target.dateLicensed);
 
   const progressByContest = new Map(progress.map((p) => [p.contestId, p.amount]));
   const expiry = contractExpiryDate(target);
@@ -406,7 +399,7 @@ export default async function ReportCardPage({
             ))}
           </div>
           <p className="mt-3 text-[11px] text-muted-foreground">
-            Hibah RT is a single tiered award (RM100k/300k/500k/600k) — qualifying for a higher tier replaces the lower one, it doesn&rsquo;t stack.{" "}
+            Hibah RT is a single tiered award (RM100k/300k/500k/600k) on total Perancangan, as in the Konvensyen sheet — qualifying for a higher tier replaces the lower one, it doesn&rsquo;t stack.{" "}
             {isRookieEligible(target.dateLicensed) && "Rookie categories shown because this daie registered within the Rookie Terbaik window (May 2025–Oct 2026). "}
             Perlantikan Round Table isn&rsquo;t shown — the app doesn&rsquo;t track a recruitment-appointment count yet.
           </p>

@@ -59,7 +59,7 @@ export function PerancanganForm({ uid, prospects = [] }: { uid: string; prospect
         <CardTitle>Perancangan</CardTitle>
         <CardDescription>
           {mode === "case"
-            ? "Wasiat or hibah planning case — Perancangan totals combine both; picking one here only powers the separate Hibah Round Table tracking."
+            ? "Wasiat or hibah planning case — Perancangan totals (and the Hibah Round Table tiers) combine both."
             : "Payment received for a Perancangan case — enter the RM amount collected."}
         </CardDescription>
         <div role="tablist" aria-label="Perancangan entry type" className="mt-2 flex w-fit gap-1 rounded-lg bg-muted p-1">

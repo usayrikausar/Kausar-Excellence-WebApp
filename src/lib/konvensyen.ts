@@ -9,6 +9,9 @@
 export const KONVENSYEN_PERIOD = { start: "2025-07-01", end: "2026-12-31" } as const;
 export const ROOKIE_WINDOW = { start: "2025-05-01", end: "2026-10-31" } as const;
 
+/** Kausar Group FY25/26 Perancangan target (group only — no unit targets), from the official FY sales update of 16 Nov 2026. */
+export const FY_GROUP_TARGET = 20_909_436.11;
+
 export const KONVENSYEN_TARGETS = {
   alWasitahKes: 40,
   pusakaAmount: 30_000,
@@ -16,7 +19,10 @@ export const KONVENSYEN_TARGETS = {
   rookiePerancangan: 60_000,
 } as const;
 
-/** Hibah Round Table is a SINGLE tiered award, not four stacking ones — a daie who clears RM500k qualifies for the HRT500k tier only, not HRT100k + HRT300k + HRT500k as well. */
+/**
+ * Hibah Round Table is a SINGLE tiered award, not four stacking ones — a daie who clears RM500k qualifies for the HRT500k tier only, not HRT100k + HRT300k + HRT500k as well.
+ * Measured on TOTAL Perancangan in the period, as the Konvensyen sheet does (its HRT100K–600K columns are against JUMLAH) — agreed 2026-11-16.
+ */
 export const HIBAH_TIERS = [100_000, 300_000, 500_000, 600_000] as const;
 
 export function isWithinKonvensyenPeriod(dateIso: string): boolean {
@@ -37,14 +43,14 @@ export interface KonvensyenCriterion {
   tierLabel?: string;
 }
 
-function computeHibahCriterion(hibahAmountInPeriod: number): KonvensyenCriterion {
-  const achieved = [...HIBAH_TIERS].reverse().find((tier) => hibahAmountInPeriod >= tier) ?? null;
+function computeHibahCriterion(perancanganInPeriod: number): KonvensyenCriterion {
+  const achieved = [...HIBAH_TIERS].reverse().find((tier) => perancanganInPeriod >= tier) ?? null;
   const maxTier = HIBAH_TIERS[HIBAH_TIERS.length - 1];
-  const nextTier = HIBAH_TIERS.find((tier) => hibahAmountInPeriod < tier) ?? maxTier;
+  const nextTier = HIBAH_TIERS.find((tier) => perancanganInPeriod < tier) ?? maxTier;
 
   return {
     label: "Hibah RT",
-    value: hibahAmountInPeriod,
+    value: perancanganInPeriod,
     target: nextTier,
     met: achieved !== null,
     tierLabel: achieved !== null ? `Qualifies for RM${(achieved / 1000).toLocaleString()}k tier` : "No tier reached yet",
@@ -55,14 +61,13 @@ export function computeKonvensyenProgress(params: {
   alWasitahKesInPeriod: number;
   pusakaAmountInPeriod: number;
   perancanganInPeriod: number;
-  hibahInPeriod: number;
   rookieEligible: boolean;
 }): KonvensyenCriterion[] {
-  const { alWasitahKesInPeriod, pusakaAmountInPeriod, perancanganInPeriod, hibahInPeriod, rookieEligible } = params;
+  const { alWasitahKesInPeriod, pusakaAmountInPeriod, perancanganInPeriod, rookieEligible } = params;
 
   const criteria: KonvensyenCriterion[] = [
     { label: "Al-Wasitah RT", value: alWasitahKesInPeriod, target: KONVENSYEN_TARGETS.alWasitahKes, met: alWasitahKesInPeriod >= KONVENSYEN_TARGETS.alWasitahKes },
-    computeHibahCriterion(hibahInPeriod),
+    computeHibahCriterion(perancanganInPeriod),
     { label: "Pusaka RT", value: pusakaAmountInPeriod, target: KONVENSYEN_TARGETS.pusakaAmount, met: pusakaAmountInPeriod >= KONVENSYEN_TARGETS.pusakaAmount },
   ];
 
@@ -74,4 +79,62 @@ export function computeKonvensyenProgress(params: {
   }
 
   return criteria;
+}
+
+/** Award progress straight from a daie's sale entries (only those inside the Konvensyen period count). */
+export function konvensyenFromSales(
+  entries: Array<{ date: string; category: string; amount: number | null; count: number | null }>,
+  dateLicensed: string | null,
+): KonvensyenCriterion[] {
+  const inPeriod = entries.filter((e) => isWithinKonvensyenPeriod(e.date));
+  const sum = (category: string, field: "amount" | "count") => inPeriod.filter((e) => e.category === category).reduce((s, e) => s + (e[field] ?? 0), 0);
+  return computeKonvensyenProgress({
+    alWasitahKesInPeriod: sum("pengurusan", "count"),
+    pusakaAmountInPeriod: sum("kesPusaka", "amount"),
+    perancanganInPeriod: sum("perancangan", "amount"),
+    rookieEligible: isRookieEligible(dateLicensed),
+  });
+}
+
+/** One daie's award progress for the Konvensyen & FY report. */
+export interface KonvensyenRow {
+  uid: string;
+  name: string;
+  daieId: string;
+  rank: "KDE" | "DPM" | "DM";
+  unitId: string;
+  konvensyen: KonvensyenCriterion[];
+}
+
+/** The Hibah RT tier a total reaches (highest tier at or below it), or null. */
+export function hibahTier(perancanganInPeriod: number): number | null {
+  return [...HIBAH_TIERS].reverse().find((tier) => perancanganInPeriod >= tier) ?? null;
+}
+
+export interface AwardSummary {
+  people: number;
+  /** Daie at each HRT tier (by highest tier reached). */
+  hrtByTier: Record<number, number>;
+  hrt: number;
+  alWasitah: number;
+  pusaka: number;
+  rookieEligible: number;
+  rookieAlWasitah: number;
+  rookiePerancangan: number;
+}
+
+/** Qualifier counts per award across a set of daie (each entry = one daie's criteria). */
+export function summarizeAwards(all: KonvensyenCriterion[][]): AwardSummary {
+  const met = (c: KonvensyenCriterion[], label: string) => c.find((x) => x.label === label)?.met ?? false;
+  const s: AwardSummary = { people: all.length, hrtByTier: Object.fromEntries(HIBAH_TIERS.map((t) => [t, 0])), hrt: 0, alWasitah: 0, pusaka: 0, rookieEligible: 0, rookieAlWasitah: 0, rookiePerancangan: 0 };
+  for (const c of all) {
+    const tier = hibahTier(c.find((x) => x.label === "Hibah RT")?.value ?? 0);
+    if (tier) { s.hrt++; s.hrtByTier[tier]++; }
+    if (met(c, "Al-Wasitah RT")) s.alWasitah++;
+    if (met(c, "Pusaka RT")) s.pusaka++;
+    if (c.some((x) => x.label.startsWith("Rookie"))) s.rookieEligible++;
+    if (met(c, "Rookie Al-Wasitah")) s.rookieAlWasitah++;
+    if (met(c, "Rookie Perancangan")) s.rookiePerancangan++;
+  }
+  return s;
 }
