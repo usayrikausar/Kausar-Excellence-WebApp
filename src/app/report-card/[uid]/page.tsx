@@ -75,7 +75,7 @@ function CriterionRow({ label, value, target, met, formatValue, note }: { label:
   const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
   return (
     <div>
-      <div className="grid grid-cols-[110px_1fr_140px_26px] items-center gap-2.5">
+      <div className="grid grid-cols-[110px_1fr_190px_26px] items-center gap-2.5">
         <div className="text-[13px] font-semibold text-ink">{label}</div>
         <div className="h-2 overflow-hidden rounded-full border border-border bg-muted">
           <div className={cn("h-full rounded-full", met ? "bg-success" : "bg-red-600")} style={{ width: `${pct}%` }} />
@@ -206,7 +206,7 @@ export default async function ReportCardPage({
         </div>
       </div>
 
-      <div className="mx-auto max-w-[820px] overflow-hidden rounded-md bg-white text-[#1c1e26] shadow-sm print:overflow-visible print:shadow-none">
+      <div className="mx-auto max-w-[820px] overflow-hidden rounded-md bg-white text-[#1c1e26] shadow-sm print:max-w-none print:overflow-visible print:rounded-none print:shadow-none">
         <div className="flex justify-between gap-5 bg-[linear-gradient(135deg,var(--color-navy-900)_0%,var(--color-navy-700)_100%)] px-9 py-6 text-white">
           <div>
             <div className="font-[family-name:var(--font-display)] text-xl font-extrabold tracking-tight">
@@ -271,9 +271,10 @@ export default async function ReportCardPage({
 
         {showSales && (
         <>
-        <div className="border-b border-border px-9 py-5 print:break-inside-avoid">
+        {/* Tall section: may continue on the next page, but each part below stays whole. */}
+        <div className="border-b border-border px-9 py-5">
           <SectionTitle hint="This period vs. goal">Sales performance</SectionTitle>
-          <div className="mb-4 grid grid-cols-3 gap-3.5">
+          <div className="mb-4 grid grid-cols-3 gap-3.5 print:break-inside-avoid">
             {goal?.salesGoal ? (
               <GoalCard label="Personal sales goal" amount={formatRM(periodTotal)} sub={`/ ${formatRM(periodGoal)}`} pct={salesGoalPct} pctLabel={single ? `${salesGoalPct}% of monthly goal` : `${salesGoalPct}% of goal for ${months.length} months`} barColor="bg-primary" />
             ) : (
@@ -299,7 +300,7 @@ export default async function ReportCardPage({
             )}
           </div>
 
-          <table className="mb-1 w-full border-collapse text-[12.5px]">
+          <table className="mb-1 w-full border-collapse text-[12.5px] print:break-inside-avoid">
             <thead>
               <tr>
                 <th className="border-b border-border px-2.5 pb-2 text-left text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">Category</th>
@@ -317,7 +318,7 @@ export default async function ReportCardPage({
             </tbody>
           </table>
 
-          <div className="mt-4 flex items-end gap-0">
+          <div className="mt-4 flex items-end gap-0 print:break-inside-avoid">
             {trend.map((t) => (
               <div key={t.monthKey} className="flex flex-1 flex-col items-center gap-1.5">
                 {trend.length <= 6 && <div className="text-[11px] font-bold text-ink">{formatRM(t.total)}</div>}
@@ -331,7 +332,7 @@ export default async function ReportCardPage({
         </div>
 
         {salesSummary.groupTotals && (
-          <div className="border-b border-border px-9 py-5 print:break-inside-avoid print:break-before-page">
+          <div className="border-b border-border px-9 py-5 print:break-inside-avoid">
             <SectionTitle hint={`${periodLabel(period)} · ${salesSummary.groupStatusCounts?.active ?? 0} active downline`}>Personal &amp; group production</SectionTitle>
             <table className="w-full border-collapse text-[12.5px]">
               <thead>

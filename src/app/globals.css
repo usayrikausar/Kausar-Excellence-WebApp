@@ -96,4 +96,12 @@ body {
     size: A4;
     margin: 12mm;
   }
+  /* Print exactly what's on screen: browsers drop background colours unless
+     "Background graphics" is ticked, which hid the navy header's white text,
+     the progress bars and the traffic-light dot. */
+  html,
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
