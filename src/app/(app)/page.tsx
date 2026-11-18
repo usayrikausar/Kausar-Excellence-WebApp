@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BadgeDollarSign, Users, Wallet, Megaphone } from "lucide-react";
+import { BadgeDollarSign, Users, Wallet, Megaphone, BarChart3 } from "lucide-react";
 import { requireDaie } from "@/lib/auth/session";
 import {
   getSalesTotalsForUid,
@@ -95,7 +95,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
       {groupSales && units && fyMonths.length > 0 && (
         <div className="space-y-3">
-          <ScopeSwitcher basePath="/" {...scopeOptions(user, scope, units)} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ScopeSwitcher basePath="/" {...scopeOptions(user, scope, units)} />
+            <Link href="/reports/analytics" className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-primary px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary/90">
+              <BarChart3 className="h-4 w-4" /> Group analytics
+            </Link>
+          </div>
           <GroupSalesDashboard
             rows={groupSales}
             months={fyMonths}

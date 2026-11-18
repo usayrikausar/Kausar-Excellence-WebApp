@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Users, FileText, Trophy } from "lucide-react";
+import { Users, FileText, Trophy, BarChart3 } from "lucide-react";
 import { requireDaie } from "@/lib/auth/session";
 import {
   getSalesSummaryFor,
@@ -129,6 +129,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-primary px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary/90"
             >
               <Trophy className="h-4 w-4" /> Konvensyen &amp; FY
+            </Link>
+          )}
+          {canSwitchScope(user) && (
+            <Link
+              href="/reports/analytics"
+              className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-primary px-3 py-1.5 text-sm font-semibold text-white hover:bg-primary/90"
+            >
+              <BarChart3 className="h-4 w-4" /> Group analytics
             </Link>
           )}
           {team.length > 0 && scope.kind === "lineage" && (

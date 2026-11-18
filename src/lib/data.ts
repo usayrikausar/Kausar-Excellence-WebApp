@@ -40,6 +40,7 @@ import { isActiveStatus } from "@/lib/utils";
 import { computeMonthlyScore, type MonthKey, type MonthlyScore } from "@/lib/scoring";
 import { computeDpmPromotionStatus, type DpmPromotionStatus, type RecruitInput } from "@/lib/promotion";
 import { konvensyenFromSales, type KonvensyenCriterion, type KonvensyenRow } from "@/lib/konvensyen";
+import type { AnalyticsMember, AnalyticsSale } from "@/lib/group-analytics";
 import type { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
 
 /**
@@ -474,6 +475,36 @@ export async function getGroupSalesByMonth(fromMonth: MonthKey): Promise<UnitMon
     byKey.set(key, row);
   }
   return [...byKey.values()];
+}
+
+/**
+ * Raw inputs for Reports → Analytics (see lib/group-analytics.ts): every
+ * Perancangan sale with its unit-at-the-time, and every daie (staff
+ * excluded) with their unit today, licence date and whether their contract
+ * is active. Whole group — callers filter by unit.
+ */
+export async function getAnalyticsInput(): Promise<{ sales: AnalyticsSale[]; members: AnalyticsMember[] }> {
+  const [{ sales }, usersSnap] = await Promise.all([
+    loadSalesWithUnit(),
+    adminDb.collection("users").select("unitId", "dateLicensed", "dateExpiry", "subscriptionStatus", "rank", "isStaff").get(),
+  ]);
+  const members: AnalyticsMember[] = [];
+  for (const doc of usersSnap.docs) {
+    const d = doc.data();
+    if (d.isStaff || !d.unitId) continue;
+    members.push({
+      uid: doc.id,
+      unitId: d.unitId,
+      dateLicensed: d.dateLicensed ?? null,
+      active: isActiveStatus({ subscriptionStatus: d.subscriptionStatus, dateLicensed: d.dateLicensed ?? null, dateExpiry: d.dateExpiry ?? null, rank: d.rank }),
+    });
+  }
+  return {
+    sales: sales
+      .filter((s) => s.category === "perancangan" && (s.amount ?? 0) > 0)
+      .map((s) => ({ uid: s.uid, unitId: s.unitId, monthKey: s.date.slice(0, 7), amount: s.amount ?? 0 })),
+    members,
+  };
 }
 
 /** Career-to-date totals per unit, by when each sale happened (see loadSalesWithUnit). */
