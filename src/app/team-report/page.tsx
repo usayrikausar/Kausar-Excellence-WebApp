@@ -2,6 +2,7 @@ import { requireDaie } from "@/lib/auth/session";
 import { getTeamReportRows, getUnits } from "@/lib/data";
 import { currentMonthKey, type MonthKey } from "@/lib/scoring";
 import { ReportCardPrintButton } from "@/components/daie/report-card-print-button";
+import { BackToAppButton } from "@/components/daie/back-to-app-button";
 import { ReportCardMonthSelect } from "@/components/daie/report-card-month-select";
 import { TeamReportTable } from "@/components/daie/team-report-table";
 
@@ -21,9 +22,12 @@ export default async function TeamReportPage({ searchParams }: { searchParams: P
   return (
     <div className="min-h-full bg-[#E9ECF6] px-4 py-8 print:bg-white print:p-0">
       <div className="mx-auto mb-5 flex max-w-[1100px] flex-wrap items-center justify-between gap-3 print:hidden">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold text-muted-foreground">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Team report
-        </span>
+        <div className="flex items-center gap-2">
+          <BackToAppButton />
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold text-muted-foreground">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Team report
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           <ReportCardMonthSelect basePath="/team-report" monthKey={monthKey} />
           <ReportCardPrintButton />
