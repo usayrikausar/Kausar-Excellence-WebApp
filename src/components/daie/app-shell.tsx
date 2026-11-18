@@ -6,12 +6,15 @@ import type { CurrentUser } from "@/lib/types";
 import { Sidebar } from "@/components/daie/sidebar";
 import { Topbar } from "@/components/daie/topbar";
 import { SessionSync } from "@/components/daie/session-sync";
+import { BottomTabBar } from "@/components/daie/bottom-tab-bar";
 import { cn } from "@/lib/utils";
 
 /**
  * Sidebar is always shown from `lg` up. Below that (phones, small tablets)
  * it's a slide-in drawer opened from the topbar's menu button — a fixed
  * 256px sidebar on a 375px phone left the page itself barely 120px wide.
+ * Phones and tablets also get a bottom tab bar for the most-used pages; its
+ * "More" tab opens the same drawer.
  */
 export function AppShell({ user, onboardingComplete, children }: { user: CurrentUser; onboardingComplete: boolean | null; children: React.ReactNode }) {
   const pathname = usePathname();
@@ -47,8 +50,9 @@ export function AppShell({ user, onboardingComplete, children }: { user: Current
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={user} menuOpen={menuOpen} onMenuToggle={() => setMenuOpen(!menuOpen)} />
-        <main className="min-w-0 flex-1 overflow-y-auto bg-muted/40 p-4 sm:p-6 lg:p-8 print:overflow-visible print:bg-white print:p-0">{children}</main>
+        <main className="min-w-0 flex-1 overflow-y-auto bg-muted/40 p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))] lg:p-8 print:overflow-visible print:bg-white print:p-0">{children}</main>
       </div>
+      <BottomTabBar menuOpen={menuOpen} onMore={() => setMenuOpen(!menuOpen)} />
     </div>
   );
 }
