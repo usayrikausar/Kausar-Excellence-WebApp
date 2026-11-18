@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
 import { requireDaie } from "@/lib/auth/session";
 import { canSwitchScope, getAnalyticsInput, getUnits } from "@/lib/data";
-import { computeGroupAnalytics, type GroupAnalytics } from "@/lib/group-analytics";
+import { computeGroupAnalytics, FY_HISTORY, FY_HISTORY_SOURCE, type GroupAnalytics } from "@/lib/group-analytics";
 import { UNIT_LABELS, unitLabel } from "@/lib/constants";
 import { formatRM, cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -119,6 +119,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const gap = a.targetToDate != null ? a.targetToDate - a.salesToDate : null;
   const thisMonthPct = a.monthlyTarget ? (a.thisMonth.amount / a.monthlyTarget) * 100 : null;
   const recruitTrend = a.recruits.recentAvg - a.recruits.avgPerMonth;
+  // Last full FY from Kausar's own sheet, for "vs last year" notes (group view only).
+  const lastFy = unitId ? null : FY_HISTORY.find((h) => h.fy === "FY24/25") ?? null;
 
   return (
     <div className="space-y-6">
@@ -152,14 +154,14 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         <Tile
           label="Recruitment"
           value={`${a.recruits.total} recruits`}
-          sub={`Licensed this FY · average ${a.recruits.avgPerMonth.toFixed(1)} a month; last 3 months ${a.recruits.recentAvg.toFixed(1)} a month${Math.abs(recruitTrend) >= 0.5 ? (recruitTrend < 0 ? " (slowing)" : " (picking up)") : ""}.`}
+          sub={`Joined this FY · average ${a.recruits.avgPerMonth.toFixed(1)} a month; last 3 months ${a.recruits.recentAvg.toFixed(1)} a month${Math.abs(recruitTrend) >= 0.5 ? (recruitTrend < 0 ? " (slowing)" : " (picking up)") : ""}.${lastFy ? ` FY24/25: ${lastFy.newRecruits}.` : ""}`}
         />
         <Tile
           label="Active producers"
           value={a.producers.fy.toLocaleString()}
-          sub={`${a.producers.activeProducers.toLocaleString()} of ${a.producers.activePerunding.toLocaleString()} active perunding (${a.producers.rate.toFixed(0)}%) have produced this FY · ${a.producers.thisMonth} producer${a.producers.thisMonth === 1 ? "" : "s"} in ${monthShort(a.currentMonth)} so far.`}
+          sub={`${a.producers.activeProducers.toLocaleString()} of ${a.producers.activePerunding.toLocaleString()} active perunding (${a.producers.rate.toFixed(0)}%) have produced this FY · ${a.producers.thisMonth} producer${a.producers.thisMonth === 1 ? "" : "s"} in ${monthShort(a.currentMonth)} so far.${lastFy ? ` FY24/25: ${lastFy.producers}.` : ""}`}
         />
-        <Tile label="Sales per producer" value={formatRM(Math.round(a.producers.salesPerProducer)).replace(/\.00$/, "")} sub="FY sales ÷ daie who made at least one sale." />
+        <Tile label="Sales per producer" value={formatRM(Math.round(a.producers.salesPerProducer)).replace(/\.00$/, "")} sub={`FY sales ÷ daie who made at least one sale.${lastFy ? ` FY24/25: ${formatRM(Math.round(lastFy.salesPerProducer)).replace(/\.00$/, "")}.` : ""}`} />
         {a.unitShares ? (
           <Tile
             label="Unit contribution"
@@ -173,7 +175,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           label="New recruit activation"
           value={`${a.recruits.activationRate.toFixed(1)}%`}
           tone={a.recruits.activationRate < 30 ? "bad" : "good"}
-          sub={`${a.recruits.becameProducer} became producers; ${a.recruits.inactive} already inactive (of ${a.recruits.total}).`}
+          sub={`${a.recruits.becameProducer} became producers; ${a.recruits.inactive} already inactive (of ${a.recruits.total}).${lastFy ? ` FY24/25: ${lastFy.activationRate.toFixed(1)}%.` : ""}`}
         />
       </div>
 
@@ -281,9 +283,55 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         </section>
       </div>
 
+      {!unitId && (
+        <section className="space-y-3 print:break-inside-avoid">
+          <div>
+            <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-ink">Previous financial years</h2>
+            <p className="text-sm text-muted-foreground">As published in the {FY_HISTORY_SOURCE}. FY25/26 there is Wasiyyah&rsquo;s own count and can differ from the live figures above.</p>
+          </div>
+          <Card>
+            <CardContent className="overflow-x-auto p-0 print:overflow-visible">
+              <table className="w-full min-w-[640px] text-sm tabular-nums print:min-w-0 print:text-[11px]">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="px-3 py-2.5">FY</th>
+                    <th className="px-3 py-2.5 text-right">Sales</th>
+                    <th className="px-3 py-2.5 text-right">Producers</th>
+                    <th className="px-3 py-2.5 text-right">Sales / producer</th>
+                    <th className="px-3 py-2.5 text-right">Perunding</th>
+                    <th className="px-3 py-2.5 text-right">New recruits</th>
+                    <th className="px-3 py-2.5 text-right">Recruits who produced</th>
+                    <th className="px-3 py-2.5 text-right">Activation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {FY_HISTORY.map((h, i) => {
+                    const prev = FY_HISTORY[i - 1];
+                    const change = (now: number, before?: number) =>
+                      before ? <span className={cn("ml-1 text-xs", now >= before ? "text-success" : "text-red-700")}>{now >= before ? "+" : ""}{(((now - before) / before) * 100).toFixed(0)}%</span> : null;
+                    return (
+                      <tr key={h.fy} className="border-b border-border last:border-0">
+                        <td className="px-3 py-2 font-semibold text-ink">{h.fy}</td>
+                        <td className="px-3 py-2 text-right">{rmShort(h.sales)}{change(h.sales, prev?.sales)}</td>
+                        <td className="px-3 py-2 text-right">{h.producers}{change(h.producers, prev?.producers)}</td>
+                        <td className="px-3 py-2 text-right">{formatRM(Math.round(h.salesPerProducer)).replace(/\.00$/, "")}{change(h.salesPerProducer, prev?.salesPerProducer)}</td>
+                        <td className="px-3 py-2 text-right">{h.perunding}{change(h.perunding, prev?.perunding)}</td>
+                        <td className="px-3 py-2 text-right">{h.newRecruits}{change(h.newRecruits, prev?.newRecruits)}</td>
+                        <td className="px-3 py-2 text-right">{h.newRecruitProducers}</td>
+                        <td className="px-3 py-2 text-right">{h.activationRate.toFixed(1)}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
       <p className="text-xs text-muted-foreground">
         Sales count toward the unit the daie was in when the sale happened. Recruits, producers and perunding are counted by their unit today.
-        Producer = at least one Perancangan sale this FY. Comparisons with FY24/25 will be added once that year&rsquo;s data is in the app.
+        Producer = at least one Perancangan sale this FY. Recruits are counted by the month they joined (Perunding sheet &ldquo;Bulan &amp; Tahun&rdquo;).
       </p>
     </div>
   );

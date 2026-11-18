@@ -68,6 +68,8 @@ function toCurrentUser(doc: QueryDocumentSnapshot<DocumentData>): CurrentUser {
     region: data.region ?? "central",
     dateLicensed: data.dateLicensed ?? null,
     dateExpiry: data.dateExpiry ?? null,
+    sheetStatus: data.sheetStatus ?? null,
+    dateJoined: data.dateJoined ?? null,
     recordOnly: data.recordOnly === true,
     isStaff: data.isStaff === true,
   };
@@ -486,7 +488,7 @@ export async function getGroupSalesByMonth(fromMonth: MonthKey): Promise<UnitMon
 export async function getAnalyticsInput(): Promise<{ sales: AnalyticsSale[]; members: AnalyticsMember[] }> {
   const [{ sales }, usersSnap] = await Promise.all([
     loadSalesWithUnit(),
-    adminDb.collection("users").select("unitId", "dateLicensed", "dateExpiry", "subscriptionStatus", "rank", "isStaff").get(),
+    adminDb.collection("users").select("unitId", "dateLicensed", "dateExpiry", "dateJoined", "sheetStatus", "subscriptionStatus", "rank", "isStaff").get(),
   ]);
   const members: AnalyticsMember[] = [];
   for (const doc of usersSnap.docs) {
@@ -495,8 +497,10 @@ export async function getAnalyticsInput(): Promise<{ sales: AnalyticsSale[]; mem
     members.push({
       uid: doc.id,
       unitId: d.unitId,
-      dateLicensed: d.dateLicensed ?? null,
-      active: isActiveStatus({ subscriptionStatus: d.subscriptionStatus, dateLicensed: d.dateLicensed ?? null, dateExpiry: d.dateExpiry ?? null, rank: d.rank }),
+      // Recruit date: the sheet's join month where synced, else the licence date.
+      dateJoined: d.dateJoined ?? d.dateLicensed ?? null,
+      active: isActiveStatus({ subscriptionStatus: d.subscriptionStatus, sheetStatus: d.sheetStatus ?? null, dateLicensed: d.dateLicensed ?? null, dateExpiry: d.dateExpiry ?? null, rank: d.rank }),
+      sheetStatus: d.sheetStatus ?? null,
     });
   }
   return {

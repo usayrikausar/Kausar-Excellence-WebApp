@@ -2,6 +2,9 @@ export type Rank = "KDE" | "DPM" | "DM";
 export type StructureType = "TS" | "OS";
 export type SubscriptionStatus = "active" | "inactive";
 
+/** STATUS column of Kausar's Perunding sheet (see UserDoc.sheetStatus). */
+export type SheetStatus = "active" | "generate" | "inactive" | "expired";
+
 /** Wasiyyah Konvensyen's 5 award regions, based on registration address. */
 export const REGIONS = ["east-coast", "central", "northern", "southern", "borneo"] as const;
 export type Region = (typeof REGIONS)[number];
@@ -52,6 +55,15 @@ export interface UserDoc {
    * renew, since dateLicensed keeps the ORIGINAL start date forever.
    */
   dateExpiry: string | null;
+  /**
+   * The Perunding sheet's own STATUS column (synced from Kausar's
+   * "Perunding Kausar Group" sheet since 2026-11-18). "expired" counts as
+   * expired even with no dateExpiry; active / generate / inactive are all
+   * current perunding. Absent on records synced before that.
+   */
+  sheetStatus?: SheetStatus | null;
+  /** ISO date the daie joined Kausar (the sheet's "Bulan & Tahun") — what recruitment counts use. */
+  dateJoined?: string | null;
   /**
    * true for a profile that exists only so a daie's sales count toward their
    * upline/unit/group totals (e.g. expired daie who still produced this FY,

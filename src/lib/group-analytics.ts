@@ -7,14 +7,40 @@
  *   sale happened (same rule as the unit tables).
  * - Target = the GROUP FY target only, spread evenly over the FY months
  *   (RM20.91m / 18 ≈ RM1.162m a month). Unit views show no target.
- * - Recruit = a daie whose dateLicensed falls in the FY, up to today.
+ * - Recruit = a daie who joined (sheet "Bulan & Tahun", else licence date)
+ *   in the FY, up to today. Inactive recruit = sheet STATUS INACTIVE, or expired.
  * - Producer = a daie with any Perancangan in the period.
- * - Active perunding = contract currently active (isActiveStatus).
+ * - Active perunding = current perunding (isActiveStatus: not EXPIRED on the
+ *   Perunding sheet, contract not lapsed) — ACTIVE + GENERATE + INACTIVE.
  * - FY closing scenarios project the remaining days at a recent monthly
  *   average: Conservative = last 6 complete months, Base = last 4,
  *   Stretch = best 3 of the last 6.
  */
 import { FY_GROUP_TARGET, KONVENSYEN_PERIOD } from "@/lib/konvensyen";
+import type { SheetStatus } from "@/lib/types";
+
+/**
+ * Kausar Group's own year-by-year figures, from Sheet3 of the "Perunding
+ * Kausar Group" Google Sheet (as of 18 Nov 2026). Kept as published — the
+ * app has no sales before FY25/26 to recompute them. Activation = new
+ * recruits who became producers ÷ new recruitment.
+ */
+export const FY_HISTORY_SOURCE = "Perunding Kausar Group sheet, 18 Nov 2026";
+export const FY_HISTORY: ReadonlyArray<{
+  fy: string;
+  sales: number;
+  producers: number;
+  salesPerProducer: number;
+  perunding: number;
+  newRecruits: number;
+  newRecruitProducers: number;
+  activationRate: number;
+}> = [
+  { fy: "FY22/23", sales: 7_138_270.05, producers: 198, salesPerProducer: 36_051.87, perunding: 785, newRecruits: 210, newRecruitProducers: 20, activationRate: 9.5 },
+  { fy: "FY23/24", sales: 8_866_757.98, producers: 208, salesPerProducer: 42_628.64, perunding: 852, newRecruits: 211, newRecruitProducers: 13, activationRate: 6.2 },
+  { fy: "FY24/25", sales: 10_016_101.34, producers: 205, salesPerProducer: 48_859.03, perunding: 780, newRecruits: 207, newRecruitProducers: 41, activationRate: 19.8 },
+  { fy: "FY25/26", sales: 10_358_459.3, producers: 279, salesPerProducer: 37_127.09, perunding: 682, newRecruits: 315, newRecruitProducers: 57, activationRate: 18.1 },
+];
 
 export interface AnalyticsSale {
   uid: string;
@@ -28,8 +54,12 @@ export interface AnalyticsMember {
   uid: string;
   /** Unit today. */
   unitId: string;
-  dateLicensed: string | null;
+  /** Join date (sheet's Bulan & Tahun), else licence date. */
+  dateJoined: string | null;
+  /** Current perunding (not expired). */
   active: boolean;
+  /** Perunding sheet STATUS, if synced. */
+  sheetStatus: SheetStatus | null;
 }
 
 export interface MonthBar {
@@ -174,12 +204,13 @@ export function computeGroupAnalytics({
 
   // Recruits
   const fyStart = KONVENSYEN_PERIOD.start;
-  const recruits = scopedMembers.filter((m) => m.dateLicensed && m.dateLicensed >= fyStart && m.dateLicensed <= today);
-  const recruitsByMonth = elapsed.map((mk) => ({ monthKey: mk, count: recruits.filter((r) => r.dateLicensed!.slice(0, 7) === mk).length }));
+  const recruits = scopedMembers.filter((m) => m.dateJoined && m.dateJoined >= fyStart && m.dateJoined <= today);
+  const recruitsByMonth = elapsed.map((mk) => ({ monthKey: mk, count: recruits.filter((r) => r.dateJoined!.slice(0, 7) === mk).length }));
   const producerUids = new Set(scopedSales.map((s) => s.uid));
   const thisMonthProducers = new Set(scopedSales.filter((s) => s.monthKey === currentMonth).map((s) => s.uid));
   const becameProducer = recruits.filter((r) => producerUids.has(r.uid)).length;
-  const recruitInactive = recruits.filter((r) => !r.active).length;
+  // Gone quiet: the sheet marks them INACTIVE, or they are no longer a current perunding.
+  const recruitInactive = recruits.filter((r) => r.sheetStatus === "inactive" || !r.active).length;
   const recentRecruitMonths = recruitsByMonth.filter((r) => r.monthKey < currentMonth).slice(-3);
 
   // Producers

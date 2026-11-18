@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { Rank, SubscriptionStatus } from "@/lib/types";
+import type { Rank, SheetStatus, SubscriptionStatus } from "@/lib/types";
 
 /** Shared shadcn-style className combiner: clsx for conditionals, tailwind-merge to dedupe. */
 export function cn(...inputs: ClassValue[]) {
@@ -74,6 +74,9 @@ export function isExpiryReminderDue(member: ExpiryFields): boolean {
  * "active" but still show as expired here if their contract term lapsed and
  * no one's renewed dateExpiry yet).
  */
-export function isActiveStatus(member: { subscriptionStatus: SubscriptionStatus } & ExpiryFields): boolean {
-  return member.subscriptionStatus === "active" && !isContractExpired(member);
+export function isActiveStatus(member: { subscriptionStatus: SubscriptionStatus; sheetStatus?: SheetStatus | null } & ExpiryFields): boolean {
+  // The Perunding sheet's STATUS = EXPIRED wins even when no end date was
+  // ever recorded (357 people as of 2026-11-18); a lapsed end date still
+  // expires someone between sheet syncs.
+  return member.subscriptionStatus === "active" && member.sheetStatus !== "expired" && !isContractExpired(member);
 }

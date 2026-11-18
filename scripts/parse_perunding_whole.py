@@ -41,6 +41,8 @@ UNIT_BY_KUMPULAN = {
 
 RANK_BY_LEVEL = {
     "PM": "DM",
+    "DM": "DM",  # 2026-11 sheet uses the app's own rank names
+    "DPM": "DPM",
     "PPM": "DPM",
     "KPE": "KDE",
     "KDE": "KDE",
@@ -83,6 +85,55 @@ REGION_BY_SHEET_VALUE = {
 }
 
 
+def normalise_kod(value):
+    """10026.0 / "10026" / " 10026 " -> "10026"; non-numeric text kept as-is; blank -> None."""
+    if value is None:
+        return None
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    if isinstance(value, int):
+        return str(value)
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        as_float = float(text)
+        return str(int(as_float)) if as_float.is_integer() else text
+    except ValueError:
+        return text
+
+
+def parse_sheet_date(value):
+    """A cell that's a real date, or text like "15/7/2019" (day/month/year) -> ISO date, else None."""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, str):
+        m = re.match(r"^\s*(\d{1,2})/(\d{1,2})/(\d{4})\s*$", value)
+        if m:
+            try:
+                return datetime(int(m.group(3)), int(m.group(2)), int(m.group(1))).date().isoformat()
+            except ValueError:
+                return None
+    return None
+
+
+# The 2026-11 sheet's STATUS column, which Kausar's own reports use: EXPIRED
+# is out; ACTIVE / GENERATE / INACTIVE are all current perunding (the
+# "perunding semasa" count). Older exports had no STATUS column.
+SHEET_STATUS = {"ACTIVE": "active", "GENERATE": "generate", "INACTIVE": "inactive", "EXPIRED": "expired"}
+
+
+def upline_text(row, idx):
+    """The upline as "NAME (kod)". The 2026-11 sheet splits the code into its own
+    "ID Upline" column; older exports put it inside the Upline text."""
+    name = row[idx["Upline"]]
+    if "ID Upline" in idx:
+        kod = normalise_kod(row[idx["ID Upline"]])
+        if kod:
+            return f"{str(name or '').strip()} ({kod})"
+    return name
+
+
 def main():
     if len(sys.argv) < 2:
         print("Usage: python scripts/parse_perunding_whole.py <path to xlsx>")
@@ -100,16 +151,29 @@ def main():
     except FileNotFoundError:
         print(f"(no old roster found at {old_roster_path}, isLdpMember will default to false)")
 
-    wb = openpyxl.load_workbook(path, data_only=True)
-    ws = wb["Sheet1"]
-    headers = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
-    idx = {h: i for i, h in enumerate(headers)}
+    wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+    # 2026-11 layout ("Perunding Kausar Group" Google Sheet) keeps the roster
+    # on "New Perunding Whole Kausar"; the original export used "Sheet1".
+    sheet_name = next((n for n in ("New Perunding Whole Kausar", "Sheet1") if n in wb.sheetnames), None)
+    if sheet_name is None:
+        print(f"No roster tab found (looked for 'New Perunding Whole Kausar' / 'Sheet1'); tabs: {wb.sheetnames}")
+        sys.exit(1)
+    ws = wb[sheet_name]
+    # Row-at-a-time read: the Google Sheet export carries formatting far past
+    # the real columns, which made a cell-by-cell loop take hours.
+    all_rows = ws.iter_rows(values_only=True)
+    headers = list(next(all_rows))
+    idx = {str(h).strip(): i for i, h in enumerate(headers) if h is not None}
+    width = max(idx.values()) + 1
 
     raw_rows = []
-    for r in range(2, ws.max_row + 1):
-        row = [ws.cell(row=r, column=c).value for c in range(1, ws.max_column + 1)]
+    for r, values in enumerate(all_rows, start=2):
+        row = list(values[:width]) + [None] * max(0, width - len(values))
         if row[idx["Nama"]] is None:
             continue
+        # The Google Sheet stores Kod as a number (10026.0); normalise to the
+        # "10026" string form used everywhere else.
+        row[idx["Kod"]] = normalise_kod(row[idx["Kod"]])
         raw_rows.append((r, row))
 
     # Pass 1: assign a stable rosterId per row and index by daieId (Kod).
@@ -150,10 +214,15 @@ def main():
             unit_id = UNIT_OVERRIDES[daie_id]
             flags.append("unit_corrected_by_pic")
 
-        mula = row[idx["Tempoh Mula"]]
-        date_licensed = mula.date().isoformat() if isinstance(mula, datetime) else None
-        tamat = row[idx["Tempoh Tamat"]]
-        date_expiry = tamat.date().isoformat() if isinstance(tamat, datetime) else None
+        date_licensed = parse_sheet_date(row[idx["Tempoh Mula"]])
+        date_expiry = parse_sheet_date(row[idx["Tempoh Tamat"]])
+        # "Bulan & Tahun" = the month they joined Kausar (the recruit date
+        # Kausar's recruitment report counts); not in older exports.
+        date_joined = parse_sheet_date(row[idx["Bulan & Tahun"]]) if "Bulan & Tahun" in idx else None
+        status_raw = row[idx["STATUS"]] if "STATUS" in idx else None
+        sheet_status = SHEET_STATUS.get(str(status_raw).strip().upper()) if status_raw else None
+        if status_raw and sheet_status is None:
+            flags.append(f"unknown_status:{status_raw}")
 
         region_raw = row[idx["Region"]]
         region_key = str(region_raw).strip().upper() if region_raw else None
@@ -176,10 +245,12 @@ def main():
             "region": region,
             "dateLicensed": date_licensed,
             "dateExpiry": date_expiry,
+            "dateJoined": date_joined,
+            "sheetStatus": sheet_status,
             "isLdpMember": old_ldp_by_daie_id.get(daie_id, False),
             "flags": flags,
             "sourceRow": sourceRow,
-            "_uplineRaw": row[idx["Upline"]],
+            "_uplineRaw": upline_text(row, idx),
         }
         records.append(rec)
         if daie_id is not None and kod_counts[daie_id] == 1:
@@ -194,7 +265,7 @@ def main():
     # each becoming a stray top-level root.
     phantom_kods = {}
     for _sourceRow, row in raw_rows:
-        upline_raw = row[idx["Upline"]]
+        upline_raw = upline_text(row, idx)
         if not upline_raw:
             continue
         m = UPLINE_KOD_RE.search(str(upline_raw))
@@ -219,6 +290,8 @@ def main():
             "region": "central",
             "dateLicensed": None,
             "dateExpiry": None,
+            "dateJoined": None,
+            "sheetStatus": None,
             "isLdpMember": old_ldp_by_daie_id.get(up_kod, False),
             "flags": ["synthetic_root"],
             "sourceRow": None,
@@ -293,8 +366,15 @@ def main():
     expired_count = 0
     from_expiry_field = 0
     from_formula = 0
+    from_sheet_status = 0
     for rec in records:
-        if rec["dateExpiry"] is not None:
+        if rec.get("sheetStatus"):
+            # The sheet's own STATUS wins when present (user decision
+            # 2026-11-18): 357 EXPIRED people have no Tempoh Tamat at all,
+            # and would otherwise count as active.
+            rec["status"] = "expired" if rec["sheetStatus"] == "expired" else "active"
+            from_sheet_status += 1
+        elif rec["dateExpiry"] is not None:
             expiry = datetime.fromisoformat(rec["dateExpiry"]).date()
             rec["status"] = "active" if expiry >= today else "expired"
             from_expiry_field += 1
@@ -329,7 +409,8 @@ def main():
 
     print(f"Wrote {out_path}: {len(records)} records")
     print(f"  active={active_count} expired={expired_count}")
-    print(f"  status source: dateExpiry field={from_expiry_field} formula-fallback={from_formula}")
+    print(f"  status source: STATUS column={from_sheet_status} dateExpiry field={from_expiry_field} formula-fallback={from_formula}")
+    print(f"  sheetStatus: {dict(Counter(r.get('sheetStatus') for r in records))} | dateJoined set: {sum(1 for r in records if r.get('dateJoined'))}")
     print(f"  region: {dict(region_counts)} (unrecognized value defaulted to central: {unrecognized_region})")
     print(f"  flagged: duplicate_id={dupes} missing_id={missing_id} missing_email={missing_email} "
           f"unresolved_upline={unresolved}")
