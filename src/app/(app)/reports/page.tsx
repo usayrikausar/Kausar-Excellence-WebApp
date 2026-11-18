@@ -148,6 +148,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               <FileText className="h-4 w-4" /> Print team report
             </Link>
           )}
+          {team.length > 0 && scope.kind === "lineage" && (
+            <Link
+              href="/team-report?view=producers"
+              target="_blank"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-muted"
+            >
+              <Trophy className="h-4 w-4" /> Producers this month
+            </Link>
+          )}
           <ExportSalesCsvButton personalTotals={personalTotals} groupTotals={groupTotals} />
         </div>
       </div>

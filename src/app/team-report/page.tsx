@@ -1,23 +1,24 @@
 import { requireDaie } from "@/lib/auth/session";
 import { getTeamReportRows, getUnits } from "@/lib/data";
-import { currentMonthKey, type MonthKey } from "@/lib/scoring";
+import { currentMonthKey } from "@/lib/scoring";
 import { ReportCardPrintButton } from "@/components/daie/report-card-print-button";
 import { BackToAppButton } from "@/components/daie/back-to-app-button";
-import { ReportCardMonthSelect } from "@/components/daie/report-card-month-select";
+import { ReportPeriodSelect } from "@/components/daie/report-period-select";
 import { TeamReportTable } from "@/components/daie/team-report-table";
 import { malaysiaToday, yoyWindow } from "@/lib/yoy";
+import { monthLabel, periodLabel, resolvePeriod } from "@/lib/period";
 
-function monthLabel(monthKey: MonthKey) {
-  const [y, m] = monthKey.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("en-MY", { month: "long", year: "numeric" });
-}
-
-export default async function TeamReportPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
+export default async function TeamReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string; period?: string; from?: string; to?: string; view?: string }>;
+}) {
   const user = await requireDaie();
-  const { month: monthParam } = await searchParams;
-  const monthKey: MonthKey = monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : currentMonthKey();
+  const query = await searchParams;
+  const period = resolvePeriod(query, currentMonthKey());
+  const initialView = query.view === "producers" || query.view === "sales" || query.view === "konvensyen" || query.view === "yoy" ? query.view : "traffic";
 
-  const [rows, units] = await Promise.all([getTeamReportRows(user, monthKey), getUnits()]);
+  const [rows, units] = await Promise.all([getTeamReportRows(user, period), getUnits()]);
   const unitCount = new Set(rows.map((r) => r.unitId)).size;
 
   return (
@@ -30,7 +31,7 @@ export default async function TeamReportPage({ searchParams }: { searchParams: P
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <ReportCardMonthSelect basePath="/team-report" monthKey={monthKey} />
+          <ReportPeriodSelect basePath="/team-report" period={period} />
           <ReportCardPrintButton />
         </div>
       </div>
@@ -42,11 +43,19 @@ export default async function TeamReportPage({ searchParams }: { searchParams: P
           </div>
           <div className="mt-3.5 font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight">Team Report</div>
           <div className="mt-1 text-[13px] text-navy-100">
-            {user.name}, {user.rank} &middot; {unitCount > 1 ? `${unitCount} units` : unitCount === 1 ? "1 unit" : "No downline"} &middot; {monthLabel(monthKey)}
+            {user.name}, {user.rank} &middot; {unitCount > 1 ? `${unitCount} units` : unitCount === 1 ? "1 unit" : "No downline"} &middot; {periodLabel(period)}
           </div>
         </div>
 
-        <TeamReportTable rows={rows} units={units} showUnit={unitCount > 1} yoyWindow={yoyWindow(malaysiaToday())} />
+        <TeamReportTable
+          rows={rows}
+          units={units}
+          showUnit={unitCount > 1}
+          yoyWindow={yoyWindow(malaysiaToday())}
+          periodLabel={periodLabel(period)}
+          trafficMonthLabel={period.kind === "month" ? null : monthLabel(period.to)}
+          initialView={initialView}
+        />
       </div>
     </div>
   );

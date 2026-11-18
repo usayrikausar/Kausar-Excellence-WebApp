@@ -11,7 +11,15 @@ import { cn, formatRM } from "@/lib/utils";
 import type { TeamReportRow } from "@/lib/data";
 import { compareYoy, formatChange, yoyFormula, PREV_FY, CURRENT_FY_LABEL, type YoyWindow } from "@/lib/yoy";
 
-type View = "traffic" | "sales" | "konvensyen" | "yoy";
+type View = "traffic" | "producers" | "sales" | "konvensyen" | "yoy";
+
+const VIEW_LABELS: Record<View, string> = {
+  traffic: "Traffic light",
+  producers: "Producers",
+  sales: "Sales by category",
+  konvensyen: "Convention qualifiers",
+  yoy: "Year on year",
+};
 
 function SortHeaderButton<K extends string>({ label, sortKey, activeSortKey, direction, onSort, align }: {
   label: string;
@@ -38,11 +46,31 @@ type TrafficSortKey = "status" | "name" | "daieId" | "training" | "reach" | "pre
 type SalesSortKey = "name" | "daieId" | "rank" | "perancangan" | "berlian" | "mutiara" | "besar" | "kecil" | "collection";
 type KonvensyenSortKey = "name" | "daieId" | "alWasitah" | "hibah" | "pusaka" | "rookieAlWasitah" | "rookiePerancangan" | "qualified";
 type YoySortKey = "name" | "daieId" | "rank" | "prev" | "ytd" | "change";
+type ProducerSortKey = "name" | "daieId" | "rank" | "perancangan" | "berlian" | "mutiara" | "pusaka";
 
 const PAGE_SIZE = 50;
 
-export function TeamReportTable({ rows, units, showUnit, yoyWindow }: { rows: TeamReportRow[]; units: Record<string, string>; showUnit: boolean; yoyWindow: YoyWindow }) {
-  const [view, setView] = useState<View>("traffic");
+export function TeamReportTable({
+  rows,
+  units,
+  showUnit,
+  yoyWindow,
+  periodLabel,
+  trafficMonthLabel,
+  initialView,
+}: {
+  rows: TeamReportRow[];
+  units: Record<string, string>;
+  showUnit: boolean;
+  yoyWindow: YoyWindow;
+  /** The period picked at the top, e.g. "November 2026". */
+  periodLabel: string;
+  /** Set when the period spans several months: the traffic light scores this (last) month. */
+  trafficMonthLabel: string | null;
+  initialView: View;
+}) {
+  const [view, setView] = useState<View>(initialView);
+  const [producerSort, setProducerSort] = useState<{ key: ProducerSortKey; dir: "asc" | "desc" }>({ key: "perancangan", dir: "desc" });
   const [trafficSort, setTrafficSort] = useState<{ key: TrafficSortKey; dir: "asc" | "desc" }>({ key: "total", dir: "desc" });
   const [salesSort, setSalesSort] = useState<{ key: SalesSortKey; dir: "asc" | "desc" }>({ key: "perancangan", dir: "desc" });
   const [konvSort, setKonvSort] = useState<{ key: KonvensyenSortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
@@ -51,9 +79,6 @@ export function TeamReportTable({ rows, units, showUnit, yoyWindow }: { rows: Te
   // the current page are hidden on screen but shown in print), since this
   // page exists to be printed as one complete team report.
   const [page, setPage] = useState(1);
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const offPage = (i: number) => i < (currentPage - 1) * PAGE_SIZE || i >= currentPage * PAGE_SIZE;
 
   function toggleSort<K extends string>(current: { key: K; dir: "asc" | "desc" }, key: K, setter: (v: { key: K; dir: "asc" | "desc" }) => void) {
     setter(key === current.key ? { key, dir: current.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" });
@@ -127,6 +152,47 @@ export function TeamReportTable({ rows, units, showUnit, yoyWindow }: { rows: Te
     return copy;
   }, [rows, konvSort]);
 
+  // Producers = anyone with Perancangan, Wasitah or Kes Pusaka in the period.
+  const producerRows = useMemo(() => {
+    const value = (row: TeamReportRow, key: ProducerSortKey): string | number => {
+      switch (key) {
+        case "name": return row.name;
+        case "daieId": return row.daieId;
+        case "rank": return row.rank;
+        case "perancangan": return row.periodSales.perancangan;
+        case "berlian": return row.periodSales.berlian;
+        case "mutiara": return row.periodSales.mutiara;
+        case "pusaka": return row.periodSales.pusaka;
+      }
+    };
+    const list = rows.filter((r) => r.periodSales.perancangan > 0 || r.periodSales.berlian > 0 || r.periodSales.mutiara > 0 || r.periodSales.pusaka > 0);
+    list.sort((a, b) => {
+      const av = value(a, producerSort.key), bv = value(b, producerSort.key);
+      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+      // Ties (e.g. same Perancangan) fall back to the bigger Perancangan, then name.
+      return (producerSort.dir === "asc" ? cmp : -cmp) || b.periodSales.perancangan - a.periodSales.perancangan || a.name.localeCompare(b.name);
+    });
+    return list;
+  }, [rows, producerSort]);
+  const producerTotals = useMemo(() => {
+    const t = { perancangan: 0, berlian: 0, mutiara: 0, pusaka: 0 };
+    for (const r of producerRows) {
+      t.perancangan += r.periodSales.perancangan;
+      t.berlian += r.periodSales.berlian;
+      t.mutiara += r.periodSales.mutiara;
+      t.pusaka += r.periodSales.pusaka;
+    }
+    return t;
+  }, [producerRows]);
+  const activeCount = rows.filter((r) => r.active).length;
+  // Same rate as Group analytics: active producers ÷ active perunding (expired daie can still have late sales).
+  const activeProducers = producerRows.filter((r) => r.active).length;
+  const perancanganProducers = producerRows.filter((r) => r.periodSales.perancangan > 0).length;
+  const visibleCount = view === "producers" ? producerRows.length : rows.length;
+  const totalPages = Math.max(1, Math.ceil(visibleCount / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const offPage = (i: number) => i < (currentPage - 1) * PAGE_SIZE || i >= currentPage * PAGE_SIZE;
+
   const yoyRows = useMemo(() => {
     const withFigures = rows.map((row) => ({ row, f: compareYoy(row.yoy.prev, row.yoy.ytd, yoyWindow) }));
     const value = ({ row, f }: (typeof withFigures)[number], key: YoySortKey): string | number => {
@@ -159,21 +225,61 @@ export function TeamReportTable({ rows, units, showUnit, yoyWindow }: { rows: Te
   return (
     <div>
       <div className="flex gap-1 border-b border-border px-6 pt-4 print:hidden">
-        {(["traffic", "sales", "konvensyen", "yoy"] as const).map((v) => (
+        {(["traffic", "producers", "sales", "konvensyen", "yoy"] as const).map((v) => (
           <button
             key={v}
             type="button"
             onClick={() => {
               setView(v);
               setPage(1);
+              // Keep the tab when the period is changed or the page is shared.
+              const url = new URL(window.location.href);
+              url.searchParams.set("view", v);
+              window.history.replaceState(null, "", url);
             }}
             className={cn("rounded-t-md px-3 py-2 text-sm font-medium", view === v ? "border border-b-0 border-border bg-white text-ink" : "text-muted-foreground hover:text-ink")}
           >
-            {v === "traffic" ? "Traffic light" : v === "sales" ? "Sales by category" : v === "konvensyen" ? "Convention qualifiers" : "Year on year"}
+            {VIEW_LABELS[v]}
           </button>
         ))}
       </div>
 
+      <div className="hidden px-6 pt-4 font-[family-name:var(--font-display)] text-sm font-bold uppercase tracking-wide text-navy-900 print:block">
+        {VIEW_LABELS[view]}
+      </div>
+      {view === "traffic" && trafficMonthLabel && (
+        <p className="px-6 pt-3 text-xs text-muted-foreground">The traffic light is a monthly score, shown here for {trafficMonthLabel} (the last month of {periodLabel}).</p>
+      )}
+      {view === "sales" && (
+        <p className="px-6 pt-3 text-xs text-muted-foreground">Career-to-date totals. For {periodLabel} only, see Producers.</p>
+      )}
+      {view === "producers" && (
+        <div className="flex flex-wrap gap-x-8 gap-y-2 border-b border-border px-6 py-4 text-sm">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Producers · {periodLabel}</div>
+            <div className="font-[family-name:var(--font-display)] text-xl font-extrabold text-ink">
+              {producerRows.length}{" "}
+              <span className="text-sm font-semibold text-muted-foreground">
+                · {activeProducers} of {activeCount} active perunding{activeCount ? ` (${Math.round((activeProducers / activeCount) * 100)}%)` : ""}
+              </span>
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Perancangan</div>
+            <div className="font-[family-name:var(--font-display)] text-xl font-extrabold text-ink">{formatRM(producerTotals.perancangan)}</div>
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Average per Perancangan producer</div>
+            <div className="font-[family-name:var(--font-display)] text-xl font-extrabold text-ink">{perancanganProducers ? formatRM(Math.round(producerTotals.perancangan / perancanganProducers)) : "—"}</div>
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Wasitah · Kes Pusaka</div>
+            <div className="font-[family-name:var(--font-display)] text-xl font-extrabold text-ink">
+              {producerTotals.berlian + producerTotals.mutiara} cases · {formatRM(producerTotals.pusaka)}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="overflow-x-auto print:overflow-visible">
         <table className="w-full border-collapse text-[12.5px] print:text-[10px] print:[&_td]:px-1.5 print:[&_th]:px-1.5 print:[&_td]:py-1.5 print:[&_th]:py-2 print:[&_tr]:break-inside-avoid print:[&_.font-mono]:text-[9px] print:[&_.font-mono]:whitespace-nowrap print:[&_.rounded-full.border]:px-1.5 print:[&_.rounded-full.border]:py-0 print:[&_.rounded-full.border]:text-[9px] print:[&_.rounded-full.border]:whitespace-nowrap">
           {view === "traffic" && (
@@ -208,6 +314,56 @@ export function TeamReportTable({ rows, units, showUnit, yoyWindow }: { rows: Te
                   </tr>
                 ))}
               </tbody>
+            </>
+          )}
+
+          {view === "producers" && (
+            <>
+              <thead>
+                <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <th className="px-3 py-2.5">#</th>
+                  <th className="px-3 py-2.5"><SortHeaderButton label="Name" sortKey="name" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
+                  <th className="px-3 py-2.5"><SortHeaderButton label="Daie ID" sortKey="daieId" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
+                  <th className="px-3 py-2.5"><SortHeaderButton label="Rank" sortKey="rank" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
+                  {showUnit && <th className="px-3 py-2.5">Unit</th>}
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Sales (Perancangan)" sortKey="perancangan" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
+                  <th className="px-3 py-2.5 text-right">% of team</th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Wasitah Berlian" sortKey="berlian" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Wasitah Mutiara" sortKey="mutiara" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Kes Pusaka" sortKey="pusaka" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
+                </tr>
+              </thead>
+              <tbody>
+                {producerRows.length === 0 && (
+                  <tr><td colSpan={showUnit ? 10 : 9} className="px-3 py-8 text-center text-muted-foreground">No production recorded in {periodLabel} yet.</td></tr>
+                )}
+                {producerRows.map((row, i) => (
+                  <tr key={row.uid} className={cn("border-b border-border", offPage(i) && "hidden print:table-row")}>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{i + 1}</td>
+                    <td className="px-3 py-2 font-medium text-ink">{row.name}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-ink">{row.daieId}</td>
+                    <td className="px-3 py-2"><Badge variant="outline">{row.rank}</Badge></td>
+                    {showUnit && <td className="px-3 py-2 text-ink">{unitLabel(row.unitId, units)}</td>}
+                    <td className="px-3 py-2 text-right font-semibold text-ink">{formatRM(row.periodSales.perancangan)}</td>
+                    <td className="px-3 py-2 text-right text-muted-foreground">{producerTotals.perancangan > 0 ? `${((row.periodSales.perancangan / producerTotals.perancangan) * 100).toFixed(1)}%` : "—"}</td>
+                    <td className="px-3 py-2 text-right text-ink">{row.periodSales.berlian || "—"}</td>
+                    <td className="px-3 py-2 text-right text-ink">{row.periodSales.mutiara || "—"}</td>
+                    <td className="px-3 py-2 text-right text-ink">{row.periodSales.pusaka ? formatRM(row.periodSales.pusaka) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+              {producerRows.length > 0 && (
+                <tfoot>
+                  <tr className="bg-muted font-bold">
+                    <td className="px-3 py-2 text-ink" colSpan={showUnit ? 5 : 4}>Total ({producerRows.length} producers)</td>
+                    <td className="px-3 py-2 text-right text-ink">{formatRM(producerTotals.perancangan)}</td>
+                    <td className="px-3 py-2 text-right text-ink">100%</td>
+                    <td className="px-3 py-2 text-right text-ink">{producerTotals.berlian}</td>
+                    <td className="px-3 py-2 text-right text-ink">{producerTotals.mutiara}</td>
+                    <td className="px-3 py-2 text-right text-ink">{formatRM(producerTotals.pusaka)}</td>
+                  </tr>
+                </tfoot>
+              )}
             </>
           )}
 

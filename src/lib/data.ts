@@ -42,6 +42,7 @@ import { computeDpmPromotionStatus, type DpmPromotionStatus, type RecruitInput }
 import { konvensyenFromSales, type KonvensyenCriterion, type KonvensyenRow } from "@/lib/konvensyen";
 import type { AnalyticsMember, AnalyticsSale } from "@/lib/group-analytics";
 import { malaysiaToday, prevFyPerancangan, ytdPerancangan, yoyWindow } from "@/lib/yoy";
+import { inPeriod, type Period } from "@/lib/period";
 import type { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
 
 /**
@@ -976,6 +977,10 @@ export interface TeamReportRow {
   konvensyenQualified: boolean;
   /** Perancangan for the year-on-year view: FY24/25 total and FY25/26 completed-months YTD (see lib/yoy.ts). */
   yoy: { prev: number; ytd: number };
+  /** Production in the report's period, for the Producers view. Wasitah is a case count; the rest RM. */
+  periodSales: { perancangan: number; berlian: number; mutiara: number; pusaka: number };
+  /** Current perunding (isActiveStatus) — the denominator for "x of y produced". */
+  active: boolean;
 }
 
 /**
@@ -993,7 +998,9 @@ export interface TeamReportRow {
  * existing Reports page already pays — since that itself composes 3
  * different per-uid queries and isn't easily batched further.
  */
-export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): Promise<TeamReportRow[]> {
+export async function getTeamReportRows(user: CurrentUser, period: Period): Promise<TeamReportRow[]> {
+  // The traffic light is monthly: over a range it scores the period's last month.
+  const monthKey: MonthKey = period.to;
   const downline = await getDownline(user);
   if (downline.length === 0) return [];
 
@@ -1028,6 +1035,14 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
     };
 
     const konvensyen = konvensyenFromSales(entries, member.dateLicensed);
+    const inP = entries.filter((e) => inPeriod(e.date, period));
+    const sum = (list: SaleEntry[], field: "amount" | "count") => list.reduce((t, e) => t + (e[field] ?? 0), 0);
+    const periodSales = {
+      perancangan: sum(inP.filter((e) => e.category === "perancangan"), "amount"),
+      berlian: sum(inP.filter((e) => e.category === "pengurusan" && e.subCategory === "berlian"), "count"),
+      mutiara: sum(inP.filter((e) => e.category === "pengurusan" && e.subCategory === "mutiara"), "count"),
+      pusaka: sum(inP.filter((e) => e.category === "kesPusaka"), "amount"),
+    };
 
     return {
       uid: member.uid,
@@ -1040,6 +1055,8 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
       konvensyen,
       konvensyenQualified: konvensyen.every((c) => c.met),
       yoy: { prev: prevFyPerancangan(member), ytd: ytdPerancangan(entries, window) },
+      periodSales,
+      active: isActiveStatus(member),
     };
   });
 }
