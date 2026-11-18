@@ -47,7 +47,7 @@ export function AppShell({ user, onboardingComplete, children }: { user: Current
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={user} menuOpen={menuOpen} onMenuToggle={() => setMenuOpen(!menuOpen)} />
-        <main className="min-w-0 flex-1 overflow-y-auto bg-muted/40 p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="min-w-0 flex-1 overflow-y-auto bg-muted/40 p-4 sm:p-6 lg:p-8 print:overflow-visible print:bg-white print:p-0">{children}</main>
       </div>
     </div>
   );

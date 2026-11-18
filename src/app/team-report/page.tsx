@@ -30,7 +30,7 @@ export default async function TeamReportPage({ searchParams }: { searchParams: P
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1100px] overflow-hidden rounded-md bg-white text-[#1c1e26] shadow-sm print:shadow-none">
+      <div className="mx-auto max-w-[1100px] overflow-hidden rounded-md bg-white text-[#1c1e26] shadow-sm print:max-w-none print:overflow-visible print:rounded-none print:shadow-none">
         <div className="bg-[linear-gradient(135deg,var(--color-navy-900)_0%,var(--color-navy-700)_100%)] px-9 py-6 text-white">
           <div className="font-[family-name:var(--font-display)] text-xl font-extrabold tracking-tight">
             Kausar<span className="text-accent">.</span> Group

@@ -84,7 +84,9 @@ export function KonvensyenBoard({ rows, units, showUnit }: { rows: KonvensyenRow
   }, [rows, filter, search, sort]);
   const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
   const current = Math.min(page, totalPages);
-  const pageRows = list.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  // Paged on screen only: every row is rendered and rows off the current
+  // page are hidden on screen but printed, so a printout is the full list.
+  const offPage = (i: number) => i < (current - 1) * PAGE_SIZE || i >= current * PAGE_SIZE;
 
   const head = (label: string, key: SortKey, right = true) => (
     <th className={cn("px-3 py-2.5", right && "text-right")}>
@@ -122,8 +124,8 @@ export function KonvensyenBoard({ rows, units, showUnit }: { rows: KonvensyenRow
             <Input id="konvensyen-search" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search name or Daie ID" aria-label="Search name or Daie ID" className="h-8 w-full sm:w-56" />
             <span className="text-muted-foreground">{list.length} daie</span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto print:overflow-visible">
+            <table className="w-full text-sm print:text-[10.5px] print:[&_td]:px-1.5 print:[&_th]:px-1.5 print:[&_td]:py-1.5 print:[&_.text-xs]:text-[9.5px] print:[&_.rounded-full.border]:px-1.5 print:[&_.rounded-full.border]:py-0 print:[&_.rounded-full.border]:text-[9px] print:[&_.rounded-full.border]:whitespace-nowrap">
               <thead>
                 <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="px-3 py-2.5">#</th>
@@ -137,7 +139,7 @@ export function KonvensyenBoard({ rows, units, showUnit }: { rows: KonvensyenRow
                 </tr>
               </thead>
               <tbody>
-                {pageRows.map((r, i) => {
+                {list.map((r, i) => {
                   const c = r.konvensyen;
                   const per = val(c, "Hibah RT");
                   const tier = hibahTier(per);
@@ -146,8 +148,8 @@ export function KonvensyenBoard({ rows, units, showUnit }: { rows: KonvensyenRow
                   const pu = crit(c, "Pusaka RT")!;
                   const rookie = c.filter((x) => x.label.startsWith("Rookie"));
                   return (
-                    <tr key={r.uid} className="border-b border-border align-top">
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{(current - 1) * PAGE_SIZE + i + 1}</td>
+                    <tr key={r.uid} className={cn("border-b border-border align-top print:break-inside-avoid", offPage(i) && "hidden print:table-row")}>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{i + 1}</td>
                       <td className="px-3 py-2">
                         <Link href={`/report-card/${r.uid}`} target="_blank" className="font-medium text-ink hover:text-primary hover:underline">{r.name}</Link>
                         <p className="text-xs text-muted-foreground">{r.daieId} · {r.rank}</p>

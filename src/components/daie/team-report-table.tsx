@@ -146,8 +146,8 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
         ))}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-[12.5px]">
+      <div className="overflow-x-auto print:overflow-visible">
+        <table className="w-full border-collapse text-[12.5px] print:text-[10px] print:[&_td]:px-1.5 print:[&_th]:px-1.5 print:[&_td]:py-1.5 print:[&_th]:py-2 print:[&_tr]:break-inside-avoid print:[&_.font-mono]:text-[9px] print:[&_.font-mono]:whitespace-nowrap print:[&_.rounded-full.border]:px-1.5 print:[&_.rounded-full.border]:py-0 print:[&_.rounded-full.border]:text-[9px] print:[&_.rounded-full.border]:whitespace-nowrap">
           {view === "traffic" && (
             <>
               <thead>
