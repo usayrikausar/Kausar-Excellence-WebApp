@@ -23,7 +23,8 @@ function isActive(pathname: string, href: string) {
  */
 export function BottomTabBar({ menuOpen, onMore }: { menuOpen: boolean; onMore: () => void }) {
   const pathname = usePathname();
-  const onTab = TABS.some((t) => isActive(pathname, t.href));
+  // Quick-add screens belong to no tab, so they don't light up "More" either.
+  const onTab = TABS.some((t) => isActive(pathname, t.href)) || pathname.startsWith("/add/");
 
   return (
     <nav

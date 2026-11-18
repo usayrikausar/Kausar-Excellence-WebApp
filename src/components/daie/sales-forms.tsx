@@ -51,8 +51,19 @@ function StatusMessage({ status }: { status: "idle" | "saving" | "saved" | "erro
  * one. Collections only ever relate to Perancangan, so they're entered here
  * rather than in a box of their own.
  */
-export function PerancanganForm({ uid, prospects = [] }: { uid: string; prospects?: ProspectOption[] }) {
-  const [mode, setMode] = useState<"case" | "collection">("case");
+export function PerancanganForm({
+  uid,
+  prospects = [],
+  initialMode = "case",
+  onSaved,
+}: {
+  uid: string;
+  prospects?: ProspectOption[];
+  initialMode?: "case" | "collection";
+  /** Called after a successful save — the quick-add screen uses it to go back. */
+  onSaved?: () => void;
+}) {
+  const [mode, setMode] = useState<"case" | "collection">(initialMode);
   return (
     <Card>
       <CardHeader>
@@ -81,13 +92,13 @@ export function PerancanganForm({ uid, prospects = [] }: { uid: string; prospect
         </div>
       </CardHeader>
       <CardContent>
-        {mode === "case" ? <PerancanganCaseFields uid={uid} prospects={prospects} /> : <CollectionFields uid={uid} prospects={prospects} />}
+        {mode === "case" ? <PerancanganCaseFields uid={uid} prospects={prospects} onSaved={onSaved} /> : <CollectionFields uid={uid} prospects={prospects} onSaved={onSaved} />}
       </CardContent>
     </Card>
   );
 }
 
-function PerancanganCaseFields({ uid, prospects }: { uid: string; prospects: ProspectOption[] }) {
+function PerancanganCaseFields({ uid, prospects, onSaved }: { uid: string; prospects: ProspectOption[]; onSaved?: () => void }) {
   const router = useRouter();
   const [subCategory, setSubCategory] = useState<"wasiat" | "hibah">("wasiat");
   const [amount, setAmount] = useState("");
@@ -113,6 +124,7 @@ function PerancanganCaseFields({ uid, prospects }: { uid: string; prospects: Pro
       setProspectId("none");
       setStatus("saved");
       router.refresh();
+      onSaved?.();
     } catch {
       setStatus("error");
     }
@@ -154,7 +166,7 @@ function PerancanganCaseFields({ uid, prospects }: { uid: string; prospects: Pro
   );
 }
 
-export function PengurusanForm({ uid, prospects = [] }: { uid: string; prospects?: ProspectOption[] }) {
+export function PengurusanForm({ uid, prospects = [], onSaved }: { uid: string; prospects?: ProspectOption[]; onSaved?: () => void }) {
   const router = useRouter();
   const [subCategory, setSubCategory] = useState<"berlian" | "mutiara">("berlian");
   const [count, setCount] = useState("");
@@ -180,6 +192,7 @@ export function PengurusanForm({ uid, prospects = [] }: { uid: string; prospects
       setProspectId("none");
       setStatus("saved");
       router.refresh();
+      onSaved?.();
     } catch {
       setStatus("error");
     }
@@ -239,7 +252,7 @@ export function PengurusanForm({ uid, prospects = [] }: { uid: string; prospects
   );
 }
 
-export function KesPusakaForm({ uid, prospects = [] }: { uid: string; prospects?: ProspectOption[] }) {
+export function KesPusakaForm({ uid, prospects = [], onSaved }: { uid: string; prospects?: ProspectOption[]; onSaved?: () => void }) {
   const router = useRouter();
   const [subCategory, setSubCategory] = useState<"besar" | "kecil">("besar");
   const [amount, setAmount] = useState("");
@@ -265,6 +278,7 @@ export function KesPusakaForm({ uid, prospects = [] }: { uid: string; prospects?
       setProspectId("none");
       setStatus("saved");
       router.refresh();
+      onSaved?.();
     } catch {
       setStatus("error");
     }
@@ -327,7 +341,7 @@ export function KesPusakaForm({ uid, prospects = [] }: { uid: string; prospects?
  * optional prospect link (saleRef is left null — no UI here to pick which
  * specific prior sale a payment is against, that's a bigger feature).
  */
-function CollectionFields({ uid, prospects }: { uid: string; prospects: ProspectOption[] }) {
+function CollectionFields({ uid, prospects, onSaved }: { uid: string; prospects: ProspectOption[]; onSaved?: () => void }) {
   const router = useRouter();
   const [amountCollected, setAmountCollected] = useState("");
   const [date, setDate] = useState(todayISO());
@@ -350,6 +364,7 @@ function CollectionFields({ uid, prospects }: { uid: string; prospects: Prospect
       setProspectId("none");
       setStatus("saved");
       router.refresh();
+      onSaved?.();
     } catch {
       setStatus("error");
     }

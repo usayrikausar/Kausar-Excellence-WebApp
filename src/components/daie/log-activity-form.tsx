@@ -140,10 +140,13 @@ export function LogActivityForm({
   uid,
   prospects,
   team,
+  onSaved,
 }: {
   uid: string;
   prospects: ActivityProspectOption[];
   team: TeamMemberOption[];
+  /** Called after a successful save — the quick-add screen uses it to go back. */
+  onSaved?: () => void;
 }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("prospecting");
@@ -277,6 +280,7 @@ export function LogActivityForm({
       resetFields();
       setStatus("saved");
       router.refresh();
+      onSaved?.();
     } catch (err) {
       const code = (err as { code?: string }).code;
       setErrorText(code ? `Could not save (${code}).` : err instanceof Error ? err.message : "Could not save.");

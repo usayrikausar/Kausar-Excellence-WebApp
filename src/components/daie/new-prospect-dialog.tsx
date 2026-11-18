@@ -12,9 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SOURCE_LABELS, STAGE_LABELS } from "@/lib/constants";
 import { PIPPPAS_STAGES, type PipppasStage, type ProspectSource } from "@/lib/types";
 
-export function NewProspectDialog({ uid }: { uid: string }) {
+/** The new-prospect form on its own — used in the dialog below and on the quick-add screen. */
+export function NewProspectForm({ uid, onSaved }: { uid: string; onSaved?: () => void }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [details, setDetails] = useState("");
@@ -55,14 +55,66 @@ export function NewProspectDialog({ uid }: { uid: string }) {
       setName("");
       setPhone("");
       setDetails("");
-      setOpen(false);
       router.refresh();
       setStatus("idle");
+      onSaved?.();
     } catch {
       setStatus("error");
     }
   }
 
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="prospect-name">Name</Label>
+        <Input id="prospect-name" required value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="prospect-phone">Phone (optional)</Label>
+        <Input id="prospect-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="prospect-details">Details (optional)</Label>
+        <Input id="prospect-details" value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Any context worth remembering" />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Source</Label>
+          <Select value={source} onValueChange={(v) => setSource(v as ProspectSource)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Object.entries(SOURCE_LABELS)
+                .filter(([value]) => value !== "training" && value !== "prosper_invite" && value !== "jfw") // activity-only types, not a "how did you meet this prospect" source — see SOURCE_LABELS' comment
+                .map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Starting stage</Label>
+          <Select value={stage} onValueChange={(v) => setStage(v as PipppasStage)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PIPPPAS_STAGES.map((s) => (
+                <SelectItem key={s} value={s}>{STAGE_LABELS[s]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {status === "error" && <p className="text-sm font-medium text-red-600">Could not save. Try again.</p>}
+
+      <Button type="submit" disabled={status === "saving"} className="w-full">
+        {status === "saving" ? "Adding…" : "Add prospect"}
+      </Button>
+    </form>
+  );
+}
+
+export function NewProspectDialog({ uid }: { uid: string }) {
+  const [open, setOpen] = useState(false);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -75,52 +127,7 @@ export function NewProspectDialog({ uid }: { uid: string }) {
             Start them at Prospecting, or pick a later stage if you&rsquo;ve already met/presented to them before adding them here.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="prospect-name">Name</Label>
-            <Input id="prospect-name" required value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="prospect-phone">Phone (optional)</Label>
-            <Input id="prospect-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="prospect-details">Details (optional)</Label>
-            <Input id="prospect-details" value={details} onChange={(e) => setDetails(e.target.value)} placeholder="Any context worth remembering" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Source</Label>
-              <Select value={source} onValueChange={(v) => setSource(v as ProspectSource)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SOURCE_LABELS)
-                    .filter(([value]) => value !== "training" && value !== "prosper_invite" && value !== "jfw") // activity-only types, not a "how did you meet this prospect" source — see SOURCE_LABELS' comment
-                    .map(([value, label]) => (
-                      <SelectItem key={value} value={value}>{label}</SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Starting stage</Label>
-              <Select value={stage} onValueChange={(v) => setStage(v as PipppasStage)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PIPPPAS_STAGES.map((s) => (
-                    <SelectItem key={s} value={s}>{STAGE_LABELS[s]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {status === "error" && <p className="text-sm font-medium text-red-600">Could not save. Try again.</p>}
-
-          <Button type="submit" disabled={status === "saving"} className="w-full">
-            {status === "saving" ? "Adding…" : "Add prospect"}
-          </Button>
-        </form>
+        <NewProspectForm uid={uid} onSaved={() => setOpen(false)} />
       </DialogContent>
     </Dialog>
   );
