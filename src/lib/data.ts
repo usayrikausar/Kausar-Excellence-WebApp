@@ -41,6 +41,7 @@ import { computeMonthlyScore, type MonthKey, type MonthlyScore } from "@/lib/sco
 import { computeDpmPromotionStatus, type DpmPromotionStatus, type RecruitInput } from "@/lib/promotion";
 import { konvensyenFromSales, type KonvensyenCriterion, type KonvensyenRow } from "@/lib/konvensyen";
 import type { AnalyticsMember, AnalyticsSale } from "@/lib/group-analytics";
+import { malaysiaToday, prevFyPerancangan, ytdPerancangan, yoyWindow } from "@/lib/yoy";
 import type { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
 
 /**
@@ -70,6 +71,7 @@ function toCurrentUser(doc: QueryDocumentSnapshot<DocumentData>): CurrentUser {
     dateExpiry: data.dateExpiry ?? null,
     sheetStatus: data.sheetStatus ?? null,
     dateJoined: data.dateJoined ?? null,
+    fyHistory: data.fyHistory ?? null,
     recordOnly: data.recordOnly === true,
     isStaff: data.isStaff === true,
   };
@@ -488,7 +490,7 @@ export async function getGroupSalesByMonth(fromMonth: MonthKey): Promise<UnitMon
 export async function getAnalyticsInput(): Promise<{ sales: AnalyticsSale[]; members: AnalyticsMember[] }> {
   const [{ sales }, usersSnap] = await Promise.all([
     loadSalesWithUnit(),
-    adminDb.collection("users").select("unitId", "dateLicensed", "dateExpiry", "dateJoined", "sheetStatus", "subscriptionStatus", "rank", "isStaff").get(),
+    adminDb.collection("users").select("unitId", "dateLicensed", "dateExpiry", "dateJoined", "sheetStatus", "subscriptionStatus", "rank", "isStaff", "fyHistory").get(),
   ]);
   const members: AnalyticsMember[] = [];
   for (const doc of usersSnap.docs) {
@@ -501,6 +503,7 @@ export async function getAnalyticsInput(): Promise<{ sales: AnalyticsSale[]; mem
       dateJoined: d.dateJoined ?? d.dateLicensed ?? null,
       active: isActiveStatus({ subscriptionStatus: d.subscriptionStatus, sheetStatus: d.sheetStatus ?? null, dateLicensed: d.dateLicensed ?? null, dateExpiry: d.dateExpiry ?? null, rank: d.rank }),
       sheetStatus: d.sheetStatus ?? null,
+      prevFy: prevFyPerancangan(d),
     });
   }
   return {
@@ -971,6 +974,8 @@ export interface TeamReportRow {
   sales: SalesTotals;
   konvensyen: KonvensyenCriterion[];
   konvensyenQualified: boolean;
+  /** Perancangan for the year-on-year view: FY24/25 total and FY25/26 completed-months YTD (see lib/yoy.ts). */
+  yoy: { prev: number; ytd: number };
 }
 
 /**
@@ -1007,6 +1012,7 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
   }
   const collectedByUid = new Map<string, number>();
   for (const c of collectionEntries) collectedByUid.set(c.uid, (collectedByUid.get(c.uid) ?? 0) + c.amountCollected);
+  const window = yoyWindow(malaysiaToday());
 
   return downline.map((member) => {
     const entries = salesByUid.get(member.uid) ?? [];
@@ -1033,6 +1039,7 @@ export async function getTeamReportRows(user: CurrentUser, monthKey: MonthKey): 
       sales,
       konvensyen,
       konvensyenQualified: konvensyen.every((c) => c.met),
+      yoy: { prev: prevFyPerancangan(member), ytd: ytdPerancangan(entries, window) },
     };
   });
 }

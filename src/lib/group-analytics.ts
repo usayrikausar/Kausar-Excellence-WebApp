@@ -60,6 +60,8 @@ export interface AnalyticsMember {
   active: boolean;
   /** Perunding sheet STATUS, if synced. */
   sheetStatus: SheetStatus | null;
+  /** FY24/25 Perancangan from the Konvensyen 24/25 sheet (0 if none) — for the year-on-year comparison. */
+  prevFy: number;
 }
 
 export interface MonthBar {

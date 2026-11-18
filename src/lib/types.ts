@@ -65,6 +65,12 @@ export interface UserDoc {
   /** ISO date the daie joined Kausar (the sheet's "Bulan & Tahun") — what recruitment counts use. */
   dateJoined?: string | null;
   /**
+   * Perancangan (RM) in earlier financial years, keyed "FY24/25", from
+   * Kausar's Konvensyen sheet for that year — the app has no sales entries
+   * before FY25/26. Feeds the year-on-year comparison (lib/yoy.ts).
+   */
+  fyHistory?: Record<string, { perancangan: number }> | null;
+  /**
    * true for a profile that exists only so a daie's sales count toward their
    * upline/unit/group totals (e.g. expired daie who still produced this FY,
    * or a company code) — no Firebase Auth account, cannot log in.

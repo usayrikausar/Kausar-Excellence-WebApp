@@ -9,8 +9,9 @@ import { TRAFFIC_LIGHT_STYLES } from "@/lib/scoring";
 import { unitLabel } from "@/lib/constants";
 import { cn, formatRM } from "@/lib/utils";
 import type { TeamReportRow } from "@/lib/data";
+import { compareYoy, formatChange, yoyFormula, PREV_FY, CURRENT_FY_LABEL, type YoyWindow } from "@/lib/yoy";
 
-type View = "traffic" | "sales" | "konvensyen";
+type View = "traffic" | "sales" | "konvensyen" | "yoy";
 
 function SortHeaderButton<K extends string>({ label, sortKey, activeSortKey, direction, onSort, align }: {
   label: string;
@@ -36,14 +37,16 @@ function konv(row: TeamReportRow, label: string) {
 type TrafficSortKey = "status" | "name" | "daieId" | "training" | "reach" | "presentations" | "prosper" | "sales" | "total";
 type SalesSortKey = "name" | "daieId" | "rank" | "perancangan" | "berlian" | "mutiara" | "besar" | "kecil" | "collection";
 type KonvensyenSortKey = "name" | "daieId" | "alWasitah" | "hibah" | "pusaka" | "rookieAlWasitah" | "rookiePerancangan" | "qualified";
+type YoySortKey = "name" | "daieId" | "rank" | "prev" | "ytd" | "change";
 
 const PAGE_SIZE = 50;
 
-export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow[]; units: Record<string, string>; showUnit: boolean }) {
+export function TeamReportTable({ rows, units, showUnit, yoyWindow }: { rows: TeamReportRow[]; units: Record<string, string>; showUnit: boolean; yoyWindow: YoyWindow }) {
   const [view, setView] = useState<View>("traffic");
   const [trafficSort, setTrafficSort] = useState<{ key: TrafficSortKey; dir: "asc" | "desc" }>({ key: "total", dir: "desc" });
   const [salesSort, setSalesSort] = useState<{ key: SalesSortKey; dir: "asc" | "desc" }>({ key: "perancangan", dir: "desc" });
   const [konvSort, setKonvSort] = useState<{ key: KonvensyenSortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
+  const [yoySort, setYoySort] = useState<{ key: YoySortKey; dir: "asc" | "desc" }>({ key: "ytd", dir: "desc" });
   // Paged on screen only — every row is still rendered and printed (rows off
   // the current page are hidden on screen but shown in print), since this
   // page exists to be printed as one complete team report.
@@ -124,6 +127,31 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
     return copy;
   }, [rows, konvSort]);
 
+  const yoyRows = useMemo(() => {
+    const withFigures = rows.map((row) => ({ row, f: compareYoy(row.yoy.prev, row.yoy.ytd, yoyWindow) }));
+    const value = ({ row, f }: (typeof withFigures)[number], key: YoySortKey): string | number => {
+      switch (key) {
+        case "name": return row.name;
+        case "daieId": return row.daieId;
+        case "rank": return row.rank;
+        case "prev": return f.prevAvg;
+        case "ytd": return f.ytdAvg;
+        // No FY24/25 to compare against sorts below every real change.
+        case "change": return f.changePct ?? -Infinity;
+      }
+    };
+    withFigures.sort((a, b) => {
+      const av = value(a, yoySort.key), bv = value(b, yoySort.key);
+      const cmp = typeof av === "number" && typeof bv === "number" ? (av === bv ? 0 : av < bv ? -1 : 1) : String(av).localeCompare(String(bv));
+      return yoySort.dir === "asc" ? cmp : -cmp;
+    });
+    return withFigures;
+  }, [rows, yoySort, yoyWindow]);
+  const yoyTotal = useMemo(
+    () => compareYoy(rows.reduce((s, r) => s + r.yoy.prev, 0), rows.reduce((s, r) => s + r.yoy.ytd, 0), yoyWindow),
+    [rows, yoyWindow],
+  );
+
   if (rows.length === 0) {
     return <p className="p-8 text-center text-sm text-muted-foreground">No downline to report on.</p>;
   }
@@ -131,7 +159,7 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
   return (
     <div>
       <div className="flex gap-1 border-b border-border px-6 pt-4 print:hidden">
-        {(["traffic", "sales", "konvensyen"] as const).map((v) => (
+        {(["traffic", "sales", "konvensyen", "yoy"] as const).map((v) => (
           <button
             key={v}
             type="button"
@@ -141,7 +169,7 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
             }}
             className={cn("rounded-t-md px-3 py-2 text-sm font-medium", view === v ? "border border-b-0 border-border bg-white text-ink" : "text-muted-foreground hover:text-ink")}
           >
-            {v === "traffic" ? "Traffic light" : v === "sales" ? "Sales by category" : "Convention qualifiers"}
+            {v === "traffic" ? "Traffic light" : v === "sales" ? "Sales by category" : v === "konvensyen" ? "Convention qualifiers" : "Year on year"}
           </button>
         ))}
       </div>
@@ -259,8 +287,56 @@ export function TeamReportTable({ rows, units, showUnit }: { rows: TeamReportRow
               </tbody>
             </>
           )}
+          {view === "yoy" && (
+            <>
+              <thead>
+                <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <th className="px-3 py-2.5"><SortHeaderButton label="Name" sortKey="name" activeSortKey={yoySort.key} direction={yoySort.dir} onSort={(k) => toggleSort(yoySort, k, setYoySort)} /></th>
+                  <th className="px-3 py-2.5"><SortHeaderButton label="Daie ID" sortKey="daieId" activeSortKey={yoySort.key} direction={yoySort.dir} onSort={(k) => toggleSort(yoySort, k, setYoySort)} /></th>
+                  <th className="px-3 py-2.5"><SortHeaderButton label="Rank" sortKey="rank" activeSortKey={yoySort.key} direction={yoySort.dir} onSort={(k) => toggleSort(yoySort, k, setYoySort)} /></th>
+                  {showUnit && <th className="px-3 py-2.5">Unit</th>}
+                  <th className="px-3 py-2.5 text-right">{PREV_FY.key} total</th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label={`${PREV_FY.key} / month`} sortKey="prev" activeSortKey={yoySort.key} direction={yoySort.dir} onSort={(k) => toggleSort(yoySort, k, setYoySort)} /></th>
+                  <th className="px-3 py-2.5 text-right">{CURRENT_FY_LABEL} YTD</th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label={`${CURRENT_FY_LABEL} / month`} sortKey="ytd" activeSortKey={yoySort.key} direction={yoySort.dir} onSort={(k) => toggleSort(yoySort, k, setYoySort)} /></th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Change" sortKey="change" activeSortKey={yoySort.key} direction={yoySort.dir} onSort={(k) => toggleSort(yoySort, k, setYoySort)} /></th>
+                </tr>
+              </thead>
+              <tbody>
+                {yoyRows.map(({ row, f }, i) => (
+                  <tr key={row.uid} className={cn("border-b border-border", offPage(i) && "hidden print:table-row")}>
+                    <td className="px-3 py-2 font-medium text-ink">{row.name}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-ink">{row.daieId}</td>
+                    <td className="px-3 py-2"><Badge variant="outline">{row.rank}</Badge></td>
+                    {showUnit && <td className="px-3 py-2 text-ink">{unitLabel(row.unitId, units)}</td>}
+                    <td className="px-3 py-2 text-right text-muted-foreground">{formatRM(f.prevTotal)}</td>
+                    <td className="px-3 py-2 text-right text-ink">{formatRM(f.prevAvg)}</td>
+                    <td className="px-3 py-2 text-right text-muted-foreground">{formatRM(f.ytdTotal)}</td>
+                    <td className="px-3 py-2 text-right text-ink">{formatRM(f.ytdAvg)}</td>
+                    <td className={cn("px-3 py-2 text-right font-semibold", f.changePct === null ? "text-muted-foreground" : f.changePct >= 0 ? "text-success" : "text-red-600")}>{formatChange(f.changePct)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-muted font-bold">
+                  <td className="px-3 py-2 text-ink" colSpan={showUnit ? 4 : 3}>Team total ({rows.length} daie)</td>
+                  <td className="px-3 py-2 text-right text-ink">{formatRM(yoyTotal.prevTotal)}</td>
+                  <td className="px-3 py-2 text-right text-ink">{formatRM(yoyTotal.prevAvg)}</td>
+                  <td className="px-3 py-2 text-right text-ink">{formatRM(yoyTotal.ytdTotal)}</td>
+                  <td className="px-3 py-2 text-right text-ink">{formatRM(yoyTotal.ytdAvg)}</td>
+                  <td className={cn("px-3 py-2 text-right", yoyTotal.changePct === null ? "text-muted-foreground" : yoyTotal.changePct >= 0 ? "text-success" : "text-red-600")}>{formatChange(yoyTotal.changePct)}</td>
+                </tr>
+              </tfoot>
+            </>
+          )}
         </table>
       </div>
+      {view === "yoy" && (
+        <div className="space-y-1 border-t border-border px-6 py-3 text-[11px] text-muted-foreground">
+          <p>Perancangan per month, team total: {yoyFormula(yoyTotal, yoyWindow, formatRM)}.</p>
+          <p>Every row uses the same formula. {PREV_FY.key} comes from the Konvensyen {PREV_FY.key} sheet. The month in progress is left out so it doesn&rsquo;t pull the average down. &ldquo;&mdash;&rdquo; = no {PREV_FY.key} sales to compare against.</p>
+        </div>
+      )}
       {totalPages > 1 && (
         <div className="print:hidden">
           <PaginationFooter page={currentPage} totalPages={totalPages} onPageChange={setPage} />

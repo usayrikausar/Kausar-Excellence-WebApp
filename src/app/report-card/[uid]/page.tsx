@@ -25,6 +25,15 @@ import { ReportCardMonthSelect } from "@/components/daie/report-card-month-selec
 import { ReportPeriodSelect } from "@/components/daie/report-period-select";
 import { inPeriod, monthLabel, periodLabel, periodMonths, resolvePeriod, shiftMonth } from "@/lib/period";
 import type { ContestTarget } from "@/lib/types";
+import { compareYoy, formatChange, malaysiaToday, prevFyPerancangan, yoyFormula, yoyWindow, ytdPerancangan, PREV_FY, CURRENT_FY_LABEL, type YoyFigures } from "@/lib/yoy";
+
+function ChangeCell({ f }: { f: YoyFigures }) {
+  return (
+    <span className={cn("font-bold", f.changePct === null ? "text-muted-foreground" : f.changePct >= 0 ? "text-success" : "text-red-600")}>
+      {formatChange(f.changePct)}
+    </span>
+  );
+}
 
 function initials(name: string) {
   const words = name.replace(/\(.*?\)/g, "").trim().split(/\s+/);
@@ -190,6 +199,19 @@ export default async function ReportCardPage({
   const salesGoalPct = periodGoal ? Math.min(100, Math.round((periodTotal / periodGoal) * 100)) : 0;
   const bestMonth = trend.reduce((b, t) => (t.total > b.total ? t : b), trend[0]);
   const collectionPct = periodTotal > 0 ? Math.min(100, Math.round((monthCollection / periodTotal) * 100)) : 0;
+
+  // Year on year: Perancangan per month, FY24/25 vs FY25/26 completed months
+  // (independent of the period picked above — see lib/yoy.ts). Group = this
+  // daie plus today's downline.
+  const yoyWin = yoyWindow(malaysiaToday());
+  const yoyPersonal = compareYoy(prevFyPerancangan(target), ytdPerancangan(saleEntries, yoyWin), yoyWin);
+  const yoyGroup = downline.length
+    ? compareYoy(
+        prevFyPerancangan(target) + downline.reduce((s, m) => s + prevFyPerancangan(m), 0),
+        ytdPerancangan(groupSaleEntries, yoyWin),
+        yoyWin,
+      )
+    : null;
 
   return (
     <div className="min-h-full bg-[#E9ECF6] px-4 py-8 print:bg-white print:p-0">
@@ -373,6 +395,36 @@ export default async function ReportCardPage({
             <p className="mt-2.5 text-[11px] text-muted-foreground">Group = this daie plus their whole downline. Collection is payments received for Perancangan cases.</p>
           </div>
         )}
+
+        <div className="border-b border-border px-9 py-5 print:break-inside-avoid">
+          <SectionTitle hint={`Perancangan per month · ${PREV_FY.key} vs ${CURRENT_FY_LABEL} to date`}>Year on year</SectionTitle>
+          <table className="w-full border-collapse text-[12.5px]">
+            <thead>
+              <tr>
+                {["", `${PREV_FY.key} total`, "÷ 12 = per month", `${CURRENT_FY_LABEL} YTD`, `÷ ${yoyPersonal.months} = per month`, "Change"].map((h, i) => (
+                  <th key={i} className={cn("border-b border-border px-2.5 pb-2 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground", i === 0 ? "text-left" : "text-right")}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[{ label: "Personal", f: yoyPersonal }, ...(yoyGroup ? [{ label: "Group", f: yoyGroup }] : [])].map(({ label, f }) => (
+                <tr key={label}>
+                  <td className="border-b border-border px-2.5 py-2 font-semibold text-ink">{label}</td>
+                  <td className="border-b border-border px-2.5 py-2 text-right text-muted-foreground">{formatRM(f.prevTotal)}</td>
+                  <td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(f.prevAvg)}</td>
+                  <td className="border-b border-border px-2.5 py-2 text-right text-muted-foreground">{formatRM(f.ytdTotal)}</td>
+                  <td className="border-b border-border px-2.5 py-2 text-right text-ink">{formatRM(f.ytdAvg)}</td>
+                  <td className="border-b border-border px-2.5 py-2 text-right"><ChangeCell f={f} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="mt-2.5 space-y-0.5 text-[11px] text-muted-foreground">
+            <p>Personal: {yoyFormula(yoyPersonal, yoyWin, formatRM)}.</p>
+            {yoyGroup && <p>Group (this daie + today&rsquo;s downline): {yoyFormula(yoyGroup, yoyWin, formatRM)}.</p>}
+            <p>{PREV_FY.key} from the Konvensyen {PREV_FY.key} sheet. The month in progress is left out so it doesn&rsquo;t pull the average down.</p>
+          </div>
+        </div>
 
         {contests.length > 0 && (
           <div className="border-b border-border px-9 py-5 print:break-inside-avoid">

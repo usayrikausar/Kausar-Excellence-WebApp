@@ -5,6 +5,7 @@ import { ReportCardPrintButton } from "@/components/daie/report-card-print-butto
 import { BackToAppButton } from "@/components/daie/back-to-app-button";
 import { ReportCardMonthSelect } from "@/components/daie/report-card-month-select";
 import { TeamReportTable } from "@/components/daie/team-report-table";
+import { malaysiaToday, yoyWindow } from "@/lib/yoy";
 
 function monthLabel(monthKey: MonthKey) {
   const [y, m] = monthKey.split("-").map(Number);
@@ -45,7 +46,7 @@ export default async function TeamReportPage({ searchParams }: { searchParams: P
           </div>
         </div>
 
-        <TeamReportTable rows={rows} units={units} showUnit={unitCount > 1} />
+        <TeamReportTable rows={rows} units={units} showUnit={unitCount > 1} yoyWindow={yoyWindow(malaysiaToday())} />
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import { formatRM, cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScopeSwitcher } from "@/components/daie/scope-switcher";
 import { ReportCardPrintButton } from "@/components/daie/report-card-print-button";
+import { compareYoy, formatChange, yoyFormula, yoyWindow, PREV_FY, CURRENT_FY_LABEL } from "@/lib/yoy";
 /** Same short names and colours as the Home group dashboard (that component is client-only, so its constant can't be imported here). */
 const DASHBOARD_UNITS = [
   { id: "kausar-wealth", short: "KWM", color: "#001f64" },
@@ -122,6 +123,18 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   // Last full FY from Kausar's own sheet, for "vs last year" notes (group view only).
   const lastFy = unitId ? null : FY_HISTORY.find((h) => h.fy === "FY24/25") ?? null;
 
+  // Year on year, per month, by TODAY's structure: FY24/25 of the people in
+  // the unit now vs their FY25/26 completed months (lib/yoy.ts).
+  const yoyWin = yoyWindow(today);
+  const ytdByUid = new Map<string, number>();
+  for (const s of sales) if (yoyWin.months.includes(s.monthKey)) ytdByUid.set(s.uid, (ytdByUid.get(s.uid) ?? 0) + s.amount);
+  const yoyFor = (unit: string | null) => {
+    const ms = unit ? members.filter((m) => m.unitId === unit) : members;
+    return compareYoy(ms.reduce((t, m) => t + m.prevFy, 0), ms.reduce((t, m) => t + (ytdByUid.get(m.uid) ?? 0), 0), yoyWin);
+  };
+  const yoy = yoyFor(unitId);
+  const yoyUnits = unitId ? [] : Object.keys(UNIT_LABELS).map((id) => ({ id, f: yoyFor(id) }));
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
@@ -185,6 +198,63 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           <p><span className="font-bold text-accent">Key issue: </span>{a.keyIssue}</p>
         </div>
       )}
+
+      <section className="space-y-3 print:break-inside-avoid">
+        <div>
+          <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-ink">Year on year · Perancangan per month</h2>
+          <p className="text-sm text-muted-foreground">
+            {PREV_FY.key} averaged over its 12 months, against {CURRENT_FY_LABEL}&rsquo;s completed months so far. Counted by today&rsquo;s structure: the people in {unitId ? scopeName : "each unit"} now, wherever they sat in {PREV_FY.key}.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{PREV_FY.key} / month</p>
+                <p className="font-[family-name:var(--font-display)] text-2xl font-extrabold tabular-nums text-ink">{rmShort(yoy.prevAvg)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{CURRENT_FY_LABEL} / month</p>
+                <p className="font-[family-name:var(--font-display)] text-2xl font-extrabold tabular-nums text-primary">{rmShort(yoy.ytdAvg)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Change</p>
+                <p className={cn("font-[family-name:var(--font-display)] text-2xl font-extrabold tabular-nums", yoy.changePct === null ? "text-muted-foreground" : yoy.changePct >= 0 ? "text-success" : "text-red-700")}>{formatChange(yoy.changePct)}</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{yoyFormula(yoy, yoyWin, formatRM)}.</p>
+
+            {yoyUnits.length > 0 && (
+              <div className="mt-4 overflow-x-auto print:overflow-visible">
+                <table className="w-full min-w-[520px] border-collapse text-sm tabular-nums print:min-w-0">
+                  <thead>
+                    <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <th className="py-2 pr-3">Unit</th>
+                      <th className="px-3 py-2 text-right">{PREV_FY.key} total</th>
+                      <th className="px-3 py-2 text-right">÷ 12 / month</th>
+                      <th className="px-3 py-2 text-right">{CURRENT_FY_LABEL} YTD</th>
+                      <th className="px-3 py-2 text-right">÷ {yoy.months} / month</th>
+                      <th className="py-2 pl-3 text-right">Change</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {yoyUnits.map(({ id, f }) => (
+                      <tr key={id} className="border-b border-border">
+                        <td className="py-2 pr-3 font-medium text-ink">{shortName(id)}</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{rmShort(f.prevTotal)}</td>
+                        <td className="px-3 py-2 text-right text-ink">{rmShort(f.prevAvg)}</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{rmShort(f.ytdTotal)}</td>
+                        <td className="px-3 py-2 text-right text-ink">{rmShort(f.ytdAvg)}</td>
+                        <td className={cn("py-2 pl-3 text-right font-semibold", f.changePct === null ? "text-muted-foreground" : f.changePct >= 0 ? "text-success" : "text-red-700")}>{formatChange(f.changePct)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       <section className="space-y-3 print:break-before-page">
         <div>
