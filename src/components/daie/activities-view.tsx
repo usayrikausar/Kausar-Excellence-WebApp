@@ -6,6 +6,7 @@ import { PipelineBoard } from "@/components/daie/pipeline-board";
 import { ActivitiesCalendar } from "@/components/daie/activities-calendar";
 import { CalendarSyncCard } from "@/components/daie/calendar-sync-card";
 import { ProspectListTable, ClientListTable, isClient } from "@/components/daie/prospect-tables";
+import { PhonePipeline, PhoneProspectList, PhoneClientList } from "@/components/daie/phone-activities";
 import { cn } from "@/lib/utils";
 import type { ProspectWithId } from "@/lib/data";
 import type { SaleEntry } from "@/lib/types";
@@ -42,9 +43,25 @@ export function ActivitiesView({
           </Button>
         ))}
       </div>
-      {view === "board" && <PipelineBoard prospects={prospects} />}
-      {view === "prospects" && <ProspectListTable prospects={prospects} />}
-      {view === "clients" && <ClientListTable prospects={prospects} sales={sales} />}
+      {/* Phone: chips + card lists; desktop: the board and the tables. */}
+      {view === "board" && (
+        <>
+          <div className="lg:hidden"><PhonePipeline prospects={prospects} /></div>
+          <div className="hidden lg:block"><PipelineBoard prospects={prospects} /></div>
+        </>
+      )}
+      {view === "prospects" && (
+        <>
+          <div className="lg:hidden"><PhoneProspectList prospects={prospects} /></div>
+          <div className="hidden lg:block"><ProspectListTable prospects={prospects} /></div>
+        </>
+      )}
+      {view === "clients" && (
+        <>
+          <div className="lg:hidden"><PhoneClientList prospects={prospects} sales={sales} /></div>
+          <div className="hidden lg:block"><ClientListTable prospects={prospects} sales={sales} /></div>
+        </>
+      )}
       {view === "calendar" && (
         <div className="space-y-4">
           <CalendarSyncCard feedUrl={feedUrl} origin={origin} />

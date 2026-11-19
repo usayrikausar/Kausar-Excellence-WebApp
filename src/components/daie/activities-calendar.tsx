@@ -72,7 +72,7 @@ export function ActivitiesCalendar({ prospects }: { prospects: ProspectWithId[] 
               type="button"
               onClick={() => setSelectedDate(cell.iso)}
               className={cn(
-                "flex h-16 flex-col items-center justify-start rounded-md border border-border p-1 text-sm hover:bg-muted",
+                "flex h-12 flex-col items-center justify-start rounded-md border border-border p-0.5 text-sm hover:bg-muted sm:h-16 sm:p-1",
                 cell.iso === todayIso && "border-primary",
                 cell.iso === selectedDate && "bg-accent/45",
               )}

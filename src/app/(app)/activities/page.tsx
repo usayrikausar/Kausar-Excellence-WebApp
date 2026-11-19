@@ -28,6 +28,8 @@ import { ExportProspectsCsvButton } from "@/components/daie/export-prospects-csv
 import { ImportProspectsCsvDialog } from "@/components/daie/import-prospects-csv-dialog";
 import { ActivityTargetCard } from "@/components/daie/activity-target-card";
 import { TeamTrafficLightTable } from "@/components/daie/team-traffic-light-table";
+import { PhoneTeamTraffic } from "@/components/daie/phone-activities";
+import { ClipboardList } from "lucide-react";
 import { DaiePicker } from "@/components/daie/daie-picker";
 import { ReportCardMonthSelect } from "@/components/daie/report-card-month-select";
 
@@ -117,9 +119,18 @@ export default async function ActivitiesPage({
           <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold text-ink">Activities</h1>
           <p className="text-sm text-muted-foreground">Your PIPPPAS working diary — from first contact to closed case.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ExportProspectsCsvButton prospects={prospects} />
-          <ImportProspectsCsvDialog uid={user.uid} prospects={prospects} />
+        <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
+          <div className="hidden items-center gap-2 lg:flex">
+            <ExportProspectsCsvButton prospects={prospects} />
+            <ImportProspectsCsvDialog uid={user.uid} prospects={prospects} />
+          </div>
+          {/* Phone: logging opens the full-screen form instead of the long inline one. */}
+          <Link
+            href="/add/activity?from=%2Factivities"
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white lg:hidden"
+          >
+            <ClipboardList className="h-4 w-4" aria-hidden /> Log activity
+          </Link>
           <NewProspectDialog uid={user.uid} />
         </div>
       </div>
@@ -152,7 +163,7 @@ export default async function ActivitiesPage({
             {report === "individual" && pickable.length > 0 && (
               <DaiePicker basePath="/activities" selfUid={user.uid} selectedUid={viewed.uid} options={pickerOptions} />
             )}
-            <div className="w-48">
+            <div className="w-full sm:w-48">
               <ReportCardMonthSelect basePath="/activities" monthKey={monthKey} />
             </div>
           </div>
@@ -166,11 +177,18 @@ export default async function ActivitiesPage({
             score={viewedScore}
           />
         )}
-        {report === "group" && !unitCounts && <TeamTrafficLightTable rows={teamRows} monthLabel={monthLabel(monthKey)} />}
+        {report === "group" && !unitCounts && (
+          <>
+            <div className="lg:hidden"><PhoneTeamTraffic rows={teamRows} monthLabel={monthLabel(monthKey)} /></div>
+            <div className="hidden lg:block"><TeamTrafficLightTable rows={teamRows} monthLabel={monthLabel(monthKey)} /></div>
+          </>
+        )}
         {report === "group" && unitCounts && <UnitTrafficLightCounts rows={unitCounts} units={units} monthLabel={monthLabel(monthKey)} />}
       </section>
 
-      <LogActivityForm uid={user.uid} prospects={activityProspects} team={jfwTeam} />
+      <div className="hidden lg:block">
+        <LogActivityForm uid={user.uid} prospects={activityProspects} team={jfwTeam} />
+      </div>
 
       <ActivitiesView prospects={prospects} sales={clientSales} feedUrl={feedToken ? `${origin}/api/calendar/${feedToken}.ics` : null} origin={origin} />
     </div>
