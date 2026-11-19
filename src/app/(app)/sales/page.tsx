@@ -7,6 +7,7 @@ import {
   getSaleEntriesForUids,
   getCollectionEntriesForUid,
   getRecentEntriesForUid,
+  getOwnCasesForUid,
   getCollectionEntriesForUids,
   getGoal,
   getUnits,
@@ -41,11 +42,12 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const totalsOnly = scope.kind === "overall";
   const period = resolvePeriod(params, currentMonthKey());
 
-  const [{ personalTotals, groupTotals, groupStatusCounts }, allProspects, downline, recentEntries] = await Promise.all([
+  const [{ personalTotals, groupTotals, groupStatusCounts }, allProspects, downline, recentEntries, ownCases] = await Promise.all([
     getSalesSummary(user),
     getProspectsForUid(user.uid),
     getDownline(user),
     getRecentEntriesForUid(user.uid),
+    getOwnCasesForUid(user.uid),
   ]);
   // Only prospects still in play are worth linking a new sale/collection to.
   const prospects = allProspects.filter((p) => p.status === "active").map((p) => ({ id: p.id, name: p.name }));
@@ -98,7 +100,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
         <RecordButtons from="/sales" />
       </div>
       <div className="hidden items-start gap-4 lg:grid lg:grid-cols-2 2xl:grid-cols-3">
-        <PerancanganForm uid={user.uid} prospects={prospects} />
+        <PerancanganForm uid={user.uid} prospects={prospects} cases={ownCases} />
         <PengurusanForm uid={user.uid} prospects={prospects} />
         <KesPusakaForm uid={user.uid} prospects={prospects} />
       </div>

@@ -5,6 +5,7 @@ import { PerancanganForm, PengurusanForm, KesPusakaForm, type ProspectOption } f
 import { LogActivityForm } from "@/components/daie/log-activity-form";
 import { NewProspectForm } from "@/components/daie/new-prospect-dialog";
 import { QUICK_ADD_SAVED_KEY, type QuickAddType } from "@/lib/quick-add";
+import type { CaseOption } from "@/lib/sale-details";
 
 type ActivityProps = React.ComponentProps<typeof LogActivityForm>;
 
@@ -20,6 +21,7 @@ export function QuickAddForm({
   prospects,
   activityProspects,
   team,
+  cases,
 }: {
   type: QuickAddType;
   uid: string;
@@ -27,6 +29,7 @@ export function QuickAddForm({
   prospects: ProspectOption[];
   activityProspects: ActivityProps["prospects"];
   team: ActivityProps["team"];
+  cases: CaseOption[];
 }) {
   const router = useRouter();
   function onSaved() {
@@ -46,7 +49,7 @@ export function QuickAddForm({
     case "perancangan":
       return <PerancanganForm uid={uid} prospects={prospects} initialMode="case" onSaved={onSaved} />;
     case "payment":
-      return <PerancanganForm uid={uid} prospects={prospects} initialMode="collection" onSaved={onSaved} />;
+      return <PerancanganForm uid={uid} prospects={prospects} initialMode="collection" cases={cases} onSaved={onSaved} />;
     case "wasitah":
       return <PengurusanForm uid={uid} prospects={prospects} onSaved={onSaved} />;
     case "pusaka":

@@ -10,6 +10,7 @@ import { unitLabel } from "@/lib/constants";
 import { cn, formatRM } from "@/lib/utils";
 import type { TeamReportRow } from "@/lib/data";
 import { compareYoy, formatChange, yoyFormula, PREV_FY, CURRENT_FY_LABEL, type YoyWindow } from "@/lib/yoy";
+import { WASITAH_PACKAGES, wasitahLabel } from "@/lib/sale-details";
 
 type View = "traffic" | "producers" | "sales" | "konvensyen" | "yoy";
 
@@ -43,10 +44,10 @@ function konv(row: TeamReportRow, label: string) {
 }
 
 type TrafficSortKey = "status" | "name" | "daieId" | "training" | "reach" | "presentations" | "prosper" | "sales" | "total";
-type SalesSortKey = "name" | "daieId" | "rank" | "perancangan" | "berlian" | "mutiara" | "besar" | "kecil" | "collection";
+type SalesSortKey = "name" | "daieId" | "rank" | "perancangan" | "wasitah" | "besar" | "kecil" | "collection";
 type KonvensyenSortKey = "name" | "daieId" | "alWasitah" | "hibah" | "pusaka" | "rookieAlWasitah" | "rookiePerancangan" | "qualified";
 type YoySortKey = "name" | "daieId" | "rank" | "prev" | "ytd" | "change";
-type ProducerSortKey = "name" | "daieId" | "rank" | "perancangan" | "berlian" | "mutiara" | "pusaka";
+type ProducerSortKey = "name" | "daieId" | "rank" | "perancangan" | "wasitah" | "pusaka";
 
 const PAGE_SIZE = 50;
 
@@ -75,6 +76,10 @@ export function TeamReportTable({
   const [salesSort, setSalesSort] = useState<{ key: SalesSortKey; dir: "asc" | "desc" }>({ key: "perancangan", dir: "desc" });
   const [konvSort, setKonvSort] = useState<{ key: KonvensyenSortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const [yoySort, setYoySort] = useState<{ key: YoySortKey; dir: "asc" | "desc" }>({ key: "ytd", dir: "desc" });
+  // One Wasitah column; the dropdown picks all packages or one (agreed 2026-11-19).
+  const [wasitahPkg, setWasitahPkg] = useState<string>("all");
+  const wasitahOf = (byPackage: Partial<Record<string, number>>, total: number) => (wasitahPkg === "all" ? total : (byPackage[wasitahPkg] ?? 0));
+  const wasitahHeader = wasitahPkg === "all" ? "Wasitah (all)" : `Wasitah ${wasitahLabel(wasitahPkg)}`;
   // Paged on screen only — every row is still rendered and printed (rows off
   // the current page are hidden on screen but shown in print), since this
   // page exists to be printed as one complete team report.
@@ -114,8 +119,7 @@ export function TeamReportTable({
         case "daieId": return row.daieId;
         case "rank": return row.rank;
         case "perancangan": return row.sales.perancangan;
-        case "berlian": return row.sales.pengurusanBerlian;
-        case "mutiara": return row.sales.pengurusanMutiara;
+        case "wasitah": return wasitahOf(row.sales.pengurusanByPackage, row.sales.pengurusanTotal);
         case "besar": return row.sales.kesPusakaBesar;
         case "kecil": return row.sales.kesPusakaKecil;
         case "collection": return row.sales.collectionTotal;
@@ -128,7 +132,8 @@ export function TeamReportTable({
       return salesSort.dir === "asc" ? cmp : -cmp;
     });
     return copy;
-  }, [rows, salesSort]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- wasitahOf only reads wasitahPkg
+  }, [rows, salesSort, wasitahPkg]);
 
   const konvRows = useMemo(() => {
     const value = (row: TeamReportRow, key: KonvensyenSortKey): string | number => {
@@ -160,12 +165,11 @@ export function TeamReportTable({
         case "daieId": return row.daieId;
         case "rank": return row.rank;
         case "perancangan": return row.periodSales.perancangan;
-        case "berlian": return row.periodSales.berlian;
-        case "mutiara": return row.periodSales.mutiara;
+        case "wasitah": return wasitahOf(row.periodSales.wasitahByPackage, row.periodSales.wasitah);
         case "pusaka": return row.periodSales.pusaka;
       }
     };
-    const list = rows.filter((r) => r.periodSales.perancangan > 0 || r.periodSales.berlian > 0 || r.periodSales.mutiara > 0 || r.periodSales.pusaka > 0);
+    const list = rows.filter((r) => r.periodSales.perancangan > 0 || r.periodSales.wasitah > 0 || r.periodSales.pusaka > 0);
     list.sort((a, b) => {
       const av = value(a, producerSort.key), bv = value(b, producerSort.key);
       const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
@@ -173,13 +177,14 @@ export function TeamReportTable({
       return (producerSort.dir === "asc" ? cmp : -cmp) || b.periodSales.perancangan - a.periodSales.perancangan || a.name.localeCompare(b.name);
     });
     return list;
-  }, [rows, producerSort]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- wasitahOf only reads wasitahPkg
+  }, [rows, producerSort, wasitahPkg]);
   const producerTotals = useMemo(() => {
-    const t = { perancangan: 0, berlian: 0, mutiara: 0, pusaka: 0 };
+    const t = { perancangan: 0, wasitah: 0, wasitahByPackage: {} as Partial<Record<string, number>>, pusaka: 0 };
     for (const r of producerRows) {
       t.perancangan += r.periodSales.perancangan;
-      t.berlian += r.periodSales.berlian;
-      t.mutiara += r.periodSales.mutiara;
+      t.wasitah += r.periodSales.wasitah;
+      for (const [k, v] of Object.entries(r.periodSales.wasitahByPackage)) t.wasitahByPackage[k] = (t.wasitahByPackage[k] ?? 0) + (v ?? 0);
       t.pusaka += r.periodSales.pusaka;
     }
     return t;
@@ -253,6 +258,20 @@ export function TeamReportTable({
       {view === "sales" && (
         <p className="px-6 pt-3 text-xs text-muted-foreground">Career-to-date totals. For {periodLabel} only, see Producers.</p>
       )}
+      {(view === "sales" || view === "producers") && (
+        <label className="flex items-center gap-2 px-6 pt-3 text-xs text-muted-foreground print:hidden">
+          Wasitah column
+          <select
+            id="team-wasitah-package"
+            value={wasitahPkg}
+            onChange={(e) => setWasitahPkg(e.target.value)}
+            className="rounded-md border border-border bg-white px-2 py-1 text-xs font-semibold text-ink"
+          >
+            <option value="all">All packages</option>
+            {WASITAH_PACKAGES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </label>
+      )}
       {view === "producers" && (
         <div className="flex flex-wrap gap-x-8 gap-y-2 border-b border-border px-6 py-4 text-sm">
           <div>
@@ -275,7 +294,7 @@ export function TeamReportTable({
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Wasitah · Kes Pusaka</div>
             <div className="font-[family-name:var(--font-display)] text-xl font-extrabold text-ink">
-              {producerTotals.berlian + producerTotals.mutiara} cases · {formatRM(producerTotals.pusaka)}
+              {producerTotals.wasitah} cases · {formatRM(producerTotals.pusaka)}
             </div>
           </div>
         </div>
@@ -328,14 +347,13 @@ export function TeamReportTable({
                   {showUnit && <th className="px-3 py-2.5">Unit</th>}
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Sales (Perancangan)" sortKey="perancangan" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
                   <th className="px-3 py-2.5 text-right">% of team</th>
-                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Wasitah Berlian" sortKey="berlian" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
-                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Wasitah Mutiara" sortKey="mutiara" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label={wasitahHeader} sortKey="wasitah" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Kes Pusaka" sortKey="pusaka" activeSortKey={producerSort.key} direction={producerSort.dir} onSort={(k) => toggleSort(producerSort, k, setProducerSort)} /></th>
                 </tr>
               </thead>
               <tbody>
                 {producerRows.length === 0 && (
-                  <tr><td colSpan={showUnit ? 10 : 9} className="px-3 py-8 text-center text-muted-foreground">No production recorded in {periodLabel} yet.</td></tr>
+                  <tr><td colSpan={showUnit ? 9 : 8} className="px-3 py-8 text-center text-muted-foreground">No production recorded in {periodLabel} yet.</td></tr>
                 )}
                 {producerRows.map((row, i) => (
                   <tr key={row.uid} className={cn("border-b border-border", offPage(i) && "hidden print:table-row")}>
@@ -346,8 +364,7 @@ export function TeamReportTable({
                     {showUnit && <td className="px-3 py-2 text-ink">{unitLabel(row.unitId, units)}</td>}
                     <td className="px-3 py-2 text-right font-semibold text-ink">{formatRM(row.periodSales.perancangan)}</td>
                     <td className="px-3 py-2 text-right text-muted-foreground">{producerTotals.perancangan > 0 ? `${((row.periodSales.perancangan / producerTotals.perancangan) * 100).toFixed(1)}%` : "—"}</td>
-                    <td className="px-3 py-2 text-right text-ink">{row.periodSales.berlian || "—"}</td>
-                    <td className="px-3 py-2 text-right text-ink">{row.periodSales.mutiara || "—"}</td>
+                    <td className="px-3 py-2 text-right text-ink">{wasitahOf(row.periodSales.wasitahByPackage, row.periodSales.wasitah) || "—"}</td>
                     <td className="px-3 py-2 text-right text-ink">{row.periodSales.pusaka ? formatRM(row.periodSales.pusaka) : "—"}</td>
                   </tr>
                 ))}
@@ -358,8 +375,7 @@ export function TeamReportTable({
                     <td className="px-3 py-2 text-ink" colSpan={showUnit ? 5 : 4}>Total ({producerRows.length} producers)</td>
                     <td className="px-3 py-2 text-right text-ink">{formatRM(producerTotals.perancangan)}</td>
                     <td className="px-3 py-2 text-right text-ink">100%</td>
-                    <td className="px-3 py-2 text-right text-ink">{producerTotals.berlian}</td>
-                    <td className="px-3 py-2 text-right text-ink">{producerTotals.mutiara}</td>
+                    <td className="px-3 py-2 text-right text-ink">{wasitahOf(producerTotals.wasitahByPackage, producerTotals.wasitah)}</td>
                     <td className="px-3 py-2 text-right text-ink">{formatRM(producerTotals.pusaka)}</td>
                   </tr>
                 </tfoot>
@@ -376,8 +392,7 @@ export function TeamReportTable({
                   <th className="px-3 py-2.5"><SortHeaderButton label="Rank" sortKey="rank" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   {showUnit && <th className="px-3 py-2.5">Unit</th>}
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Perancangan" sortKey="perancangan" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
-                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Wasitah Berlian" sortKey="berlian" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
-                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Wasitah Mutiara" sortKey="mutiara" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
+                  <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label={wasitahHeader} sortKey="wasitah" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Pusaka Besar" sortKey="besar" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Pusaka Kecil" sortKey="kecil" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
                   <th className="px-3 py-2.5 text-right"><SortHeaderButton align="right" label="Collection" sortKey="collection" activeSortKey={salesSort.key} direction={salesSort.dir} onSort={(k) => toggleSort(salesSort, k, setSalesSort)} /></th>
@@ -391,8 +406,7 @@ export function TeamReportTable({
                     <td className="px-3 py-2"><Badge variant="outline">{row.rank}</Badge></td>
                     {showUnit && <td className="px-3 py-2 text-ink">{unitLabel(row.unitId, units)}</td>}
                     <td className="px-3 py-2 text-right text-ink">{formatRM(row.sales.perancangan)}</td>
-                    <td className="px-3 py-2 text-right text-ink">{row.sales.pengurusanBerlian}</td>
-                    <td className="px-3 py-2 text-right text-ink">{row.sales.pengurusanMutiara}</td>
+                    <td className="px-3 py-2 text-right text-ink">{wasitahOf(row.sales.pengurusanByPackage, row.sales.pengurusanTotal)}</td>
                     <td className="px-3 py-2 text-right text-ink">{formatRM(row.sales.kesPusakaBesar)}</td>
                     <td className="px-3 py-2 text-right text-ink">{formatRM(row.sales.kesPusakaKecil)}</td>
                     <td className="px-3 py-2 text-right text-ink">{formatRM(row.sales.collectionTotal)}</td>

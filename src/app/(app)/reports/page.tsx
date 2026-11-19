@@ -72,7 +72,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         return {
           unitId,
           salesTotal: t?.perancangan ?? 0,
-          wasitahTotal: (t?.pengurusanBerlian ?? 0) + (t?.pengurusanMutiara ?? 0),
+          wasitahTotal: t?.pengurusanTotal ?? 0,
           pusakaTotal: (t?.kesPusakaBesar ?? 0) + (t?.kesPusakaKecil ?? 0),
           collectionTotal: t?.collectionTotal ?? 0,
           count: everyone.filter((m) => m.unitId === unitId).length,

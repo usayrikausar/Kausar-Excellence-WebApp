@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { X } from "lucide-react";
 import { requireDaie } from "@/lib/auth/session";
-import { getDownline, getProspectsForUid, getUsersByUids } from "@/lib/data";
+import { getDownline, getOwnCasesForUid, getProspectsForUid, getUsersByUids } from "@/lib/data";
 import { QuickAddForm } from "@/components/daie/quick-add-form";
 import { isQuickAddType, QUICK_ADD_LABELS, safeReturnPath } from "@/lib/quick-add";
 
@@ -30,6 +30,7 @@ export default async function QuickAddPage({
   const open = allProspects.filter((p) => p.status === "active");
   const prospects = open.map((p) => ({ id: p.id, name: p.name }));
   const activityProspects = open.map((p) => ({ id: p.id, name: p.name, stage: p.stage, phone: p.phone }));
+  const cases = type === "payment" ? await getOwnCasesForUid(user.uid) : [];
   let team: Array<{ uid: string; name: string; daieId: string; rank: typeof user.rank; unitId: string }> = [];
   if (type === "activity") {
     const [downline, uplines] = await Promise.all([getDownline(user), getUsersByUids(user.lineagePath)]);
@@ -53,7 +54,7 @@ export default async function QuickAddPage({
           <X className="h-5 w-5" aria-hidden />
         </Link>
       </div>
-      <QuickAddForm type={type} uid={user.uid} returnTo={returnTo} prospects={prospects} activityProspects={activityProspects} team={team} />
+      <QuickAddForm type={type} uid={user.uid} returnTo={returnTo} prospects={prospects} activityProspects={activityProspects} team={team} cases={cases} />
     </div>
   );
 }

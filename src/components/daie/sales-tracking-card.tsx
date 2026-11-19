@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WASITAH_PACKAGES, wasitahBreakdown } from "@/lib/sale-details";
 import { Printer } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProgressBar } from "@/components/daie/progress-bar";
@@ -8,8 +9,9 @@ import { inPeriod, monthLabel, periodLabel, periodMonths, periodQuery, shiftMont
 
 interface MonthFigures {
   perancangan: number;
-  berlian: number;
-  mutiara: number;
+  /** Al Wasitah cases, every package, and per package. */
+  wasitah: number;
+  wasitahByPackage: Partial<Record<string, number>>;
   pusakaBesar: number;
   pusakaKecil: number;
 }
@@ -20,8 +22,8 @@ function figuresFor(entries: SaleEntry[], period: Period): MonthFigures {
     month.filter(pred).reduce((s, e) => s + (e[field] ?? 0), 0);
   return {
     perancangan: sum((e) => e.category === "perancangan", "amount"),
-    berlian: sum((e) => e.category === "pengurusan" && e.subCategory === "berlian", "count"),
-    mutiara: sum((e) => e.category === "pengurusan" && e.subCategory === "mutiara", "count"),
+    wasitah: sum((e) => e.category === "pengurusan", "count"),
+    wasitahByPackage: Object.fromEntries(WASITAH_PACKAGES.map((p) => [p.value, sum((e) => e.category === "pengurusan" && e.subCategory === p.value, "count")])),
     pusakaBesar: sum((e) => e.category === "kesPusaka" && e.subCategory === "besar", "amount"),
     pusakaKecil: sum((e) => e.category === "kesPusaka" && e.subCategory === "kecil", "amount"),
   };
@@ -72,8 +74,11 @@ export function SalesTrackingCard({
 
   const rows: Array<{ label: string; personal: string; group?: string }> = [
     { label: "Perancangan", personal: formatRM(f.perancangan), group: group ? formatRM(group.perancangan) : undefined },
-    { label: "Pengurusan — Berlian", personal: `${f.berlian} kes`, group: group ? `${group.berlian} kes` : undefined },
-    { label: "Pengurusan — Mutiara", personal: `${f.mutiara} kes`, group: group ? `${group.mutiara} kes` : undefined },
+    {
+      label: `Al Wasitah${wasitahBreakdown(f.wasitahByPackage) ? ` (${wasitahBreakdown(f.wasitahByPackage)})` : ""}`,
+      personal: `${f.wasitah} kes`,
+      group: group ? `${group.wasitah} kes` : undefined,
+    },
     { label: "Kes Pusaka — Besar", personal: formatRM(f.pusakaBesar), group: group ? formatRM(group.pusakaBesar) : undefined },
     { label: "Kes Pusaka — Kecil", personal: formatRM(f.pusakaKecil), group: group ? formatRM(group.pusakaKecil) : undefined },
   ];

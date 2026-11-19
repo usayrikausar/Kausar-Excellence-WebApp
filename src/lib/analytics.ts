@@ -5,6 +5,8 @@ export interface MonthlyRow {
   perancangan: number;
   pengurusanBerlian: number;
   pengurusanMutiara: number;
+  /** Every Wasitah package. */
+  pengurusanTotal: number;
   kesPusakaBesar: number;
   kesPusakaKecil: number;
 }
@@ -20,6 +22,7 @@ export function computeMonthlyBreakdown(entries: SaleEntry[]): MonthlyRow[] {
         perancangan: 0,
         pengurusanBerlian: 0,
         pengurusanMutiara: 0,
+        pengurusanTotal: 0,
         kesPusakaBesar: 0,
         kesPusakaKecil: 0,
       });
@@ -29,6 +32,7 @@ export function computeMonthlyBreakdown(entries: SaleEntry[]): MonthlyRow[] {
     else if (entry.category === "pengurusan") {
       if (entry.subCategory === "berlian") row.pengurusanBerlian += entry.count ?? 0;
       if (entry.subCategory === "mutiara") row.pengurusanMutiara += entry.count ?? 0;
+      row.pengurusanTotal += entry.count ?? 0;
     } else if (entry.category === "kesPusaka") {
       if (entry.subCategory === "besar") row.kesPusakaBesar += entry.amount ?? 0;
       if (entry.subCategory === "kecil") row.kesPusakaKecil += entry.amount ?? 0;

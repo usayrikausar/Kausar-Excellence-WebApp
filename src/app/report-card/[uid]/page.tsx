@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { WASITAH_PACKAGES, wasitahBreakdown } from "@/lib/sale-details";
 import { requireDaie } from "@/lib/auth/session";
 import {
   getUserByUid,
@@ -160,8 +161,11 @@ export default async function ReportCardPage({
 
   const monthSales = saleEntries.filter((e) => inPeriod(e.date, period));
   const perancangan = monthSales.filter((e) => e.category === "perancangan").reduce((s, e) => s + (e.amount ?? 0), 0);
-  const berlianCount = monthSales.filter((e) => e.category === "pengurusan" && e.subCategory === "berlian").reduce((s, e) => s + (e.count ?? 0), 0);
-  const mutiaraCount = monthSales.filter((e) => e.category === "pengurusan" && e.subCategory === "mutiara").reduce((s, e) => s + (e.count ?? 0), 0);
+  // Al Wasitah: every package counts (Berlian, Mutiara, Intan, Khairat Pusaka Silver / Gold).
+  const wasitahCount = monthSales.filter((e) => e.category === "pengurusan").reduce((s, e) => s + (e.count ?? 0), 0);
+  const wasitahDetail = wasitahBreakdown(
+    Object.fromEntries(WASITAH_PACKAGES.map((p) => [p.value, monthSales.filter((e) => e.category === "pengurusan" && e.subCategory === p.value).reduce((s, e) => s + (e.count ?? 0), 0)])),
+  );
   const pusakaBesar = monthSales.filter((e) => e.category === "kesPusaka" && e.subCategory === "besar").reduce((s, e) => s + (e.amount ?? 0), 0);
   const pusakaKecil = monthSales.filter((e) => e.category === "kesPusaka" && e.subCategory === "kecil").reduce((s, e) => s + (e.amount ?? 0), 0);
   const periodTotal = perancangan + pusakaBesar + pusakaKecil;
@@ -178,8 +182,6 @@ export default async function ReportCardPage({
   const groupMonth = groupSaleEntries.filter((e) => inPeriod(e.date, period));
   const sumAmount = (list: typeof groupMonth, cat: string, sub?: string) =>
     list.filter((e) => e.category === cat && (!sub || e.subCategory === sub)).reduce((s, e) => s + (e.amount ?? 0), 0);
-  const sumCount = (list: typeof groupMonth, sub: string) =>
-    list.filter((e) => e.category === "pengurusan" && e.subCategory === sub).reduce((s, e) => s + (e.count ?? 0), 0);
   const groupMonthCollection = groupCollectionEntries.filter((e) => inPeriod(e.date, period)).reduce((s, e) => s + e.amountCollected, 0);
 
   const trend = trendMonths.map((mk) => ({
@@ -336,8 +338,7 @@ export default async function ReportCardPage({
             </thead>
             <tbody>
               <tr><td className="border-b border-border px-2.5 py-2 text-ink">Perancangan</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{perancangan.toLocaleString()}</td></tr>
-              <tr><td className="border-b border-border px-2.5 py-2 text-ink">Pengurusan — Al Wasitah (Berlian)</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{berlianCount}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td></tr>
-              <tr><td className="border-b border-border px-2.5 py-2 text-ink">Pengurusan — Al Wasitah (Mutiara)</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{mutiaraCount}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td></tr>
+              <tr><td className="border-b border-border px-2.5 py-2 text-ink">Pengurusan — Al Wasitah{wasitahDetail ? ` (${wasitahDetail})` : ""}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{wasitahCount}</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td></tr>
               <tr><td className="border-b border-border px-2.5 py-2 text-ink">Kes Pusaka — Besar</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{pusakaBesar.toLocaleString()}</td></tr>
               <tr><td className="border-b border-border px-2.5 py-2 text-ink">Kes Pusaka — Kecil</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">—</td><td className="border-b border-border px-2.5 py-2 text-right text-ink">{pusakaKecil.toLocaleString()}</td></tr>
               <tr className="bg-muted font-bold"><td className="px-2.5 py-2 text-ink">Total (Perancangan + Kes Pusaka)</td><td className="px-2.5 py-2 text-right text-ink">—</td><td className="px-2.5 py-2 text-right text-ink">{periodTotal.toLocaleString()}</td></tr>
@@ -372,8 +373,7 @@ export default async function ReportCardPage({
               <tbody>
                 {[
                   { label: "Perancangan", p: formatRM(perancangan), g: formatRM(sumAmount(groupMonth, "perancangan")), c: formatRM(salesSummary.groupTotals.perancangan) },
-                  { label: "Wasitah — Berlian", p: String(berlianCount), g: String(sumCount(groupMonth, "berlian")), c: String(salesSummary.groupTotals.pengurusanBerlian) },
-                  { label: "Wasitah — Mutiara", p: String(mutiaraCount), g: String(sumCount(groupMonth, "mutiara")), c: String(salesSummary.groupTotals.pengurusanMutiara) },
+                  { label: "Al Wasitah (all packages)", p: String(wasitahCount), g: String(groupMonth.filter((e) => e.category === "pengurusan").reduce((t, e) => t + (e.count ?? 0), 0)), c: String(salesSummary.groupTotals.pengurusanTotal) },
                   { label: "Pusaka — Besar", p: formatRM(pusakaBesar), g: formatRM(sumAmount(groupMonth, "kesPusaka", "besar")), c: formatRM(salesSummary.groupTotals.kesPusakaBesar) },
                   { label: "Pusaka — Kecil", p: formatRM(pusakaKecil), g: formatRM(sumAmount(groupMonth, "kesPusaka", "kecil")), c: formatRM(salesSummary.groupTotals.kesPusakaKecil) },
                 ].map((r) => (

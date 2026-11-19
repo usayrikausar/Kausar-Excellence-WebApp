@@ -94,7 +94,7 @@ export interface CurrentUser extends UserDoc {
 export type SalesCategory = "perancangan" | "pengurusan" | "kesPusaka";
 /** Wasiat (will) vs Hibah (gift) — both are Perancangan cases; "Perancangan" everywhere in the app (sales totals, the DM->DPM promotion quota, Rookie Perancangan) is the COMBINED wasiat+hibah RM figure, unchanged by this split. This only exists so Hibah can ALSO be tracked on its own for Wasiyyah's Hibah Round Table Konvensyen award, which needs a Hibah-only number. */
 export type PerancanganSubCategory = "wasiat" | "hibah";
-export type PengurusanSubCategory = "berlian" | "mutiara";
+export type PengurusanSubCategory = "berlian" | "mutiara" | "intan" | "khairat_silver" | "khairat_gold";
 export type KesPusakaSubCategory = "besar" | "kecil";
 
 export interface SaleDoc {
@@ -113,6 +113,14 @@ export interface SaleDoc {
    * Missing on older entries, which fall back to the daie's current unit.
    */
   unitId?: string;
+  /**
+   * Perancangan only, for analysis (from 2026-11-19): the products in the
+   * plan, names only — the amount is the case total, never split by product.
+   * New Perancangan entries have subCategory null (no Wasiat/Hibah split).
+   */
+  products?: string[];
+  /** Perancangan only: the promotion the case was sold under, e.g. "Promosi HK 45%". */
+  promotion?: string | null;
 }
 
 /**
@@ -143,6 +151,10 @@ export interface CollectionDoc {
   createdAt: unknown;
   /** Set when this collection is tied to a pipeline prospect (see ProspectDoc) — optional. */
   prospectId?: string | null;
+  /** "deposit" = paid when the case was recorded; "payment" = a later instalment. Missing on older entries. */
+  kind?: "deposit" | "payment";
+  /** The daie's own note, e.g. "2nd instalment of 3". */
+  note?: string | null;
 }
 
 /** Plain, client-safe shape of one collection (payment) entry — same rationale as SaleEntry. */

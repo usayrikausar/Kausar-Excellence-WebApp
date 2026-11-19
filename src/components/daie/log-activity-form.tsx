@@ -1,5 +1,7 @@
 "use client";
 
+import { ProductPromoFields, DepositField } from "@/components/daie/sale-detail-fields";
+import { cleanProducts, cleanPromotion, WASITAH_PACKAGES } from "@/lib/sale-details";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addDoc, collection, doc, serverTimestamp, Timestamp, writeBatch } from "firebase/firestore";
@@ -121,7 +123,7 @@ function JfwPartnerPicker({ suggestions, value, onChange }: { suggestions: TeamM
 type Service = "perancangan" | "pengurusan" | "kesPusaka";
 const SERVICE_SUBS: Record<Service, Array<{ value: string; label: string }>> = {
   perancangan: [{ value: "wasiat", label: "Wasiat" }, { value: "hibah", label: "Hibah" }],
-  pengurusan: [{ value: "berlian", label: "Berlian" }, { value: "mutiara", label: "Mutiara" }],
+  pengurusan: WASITAH_PACKAGES.map((p) => ({ value: p.value, label: p.label })),
   kesPusaka: [{ value: "besar", label: "Besar" }, { value: "kecil", label: "Kecil" }],
 };
 
@@ -170,6 +172,10 @@ export function LogActivityForm({
   const [service, setService] = useState<Service>("perancangan");
   const [serviceSub, setServiceSub] = useState("wasiat");
   const [saleValue, setSaleValue] = useState("");
+  // Perancangan: products, promotion and deposit (no Wasiat/Hibah split since 2026-11-19).
+  const [products, setProducts] = useState<string[]>([""]);
+  const [promotion, setPromotion] = useState("");
+  const [deposit, setDeposit] = useState("");
   // JFW
   const [partner, setPartner] = useState<TeamMemberOption | null>(null);
 
@@ -187,6 +193,9 @@ export function LogActivityForm({
     setNextFollowUpDate("");
     setRecordSale(false);
     setSaleValue("");
+    setProducts([""]);
+    setPromotion("");
+    setDeposit("");
     setPartner(null);
   }
 
@@ -254,16 +263,30 @@ export function LogActivityForm({
           const value = Number(saleValue);
           if (!value || value <= 0) throw new Error(service === "pengurusan" ? "Enter the number of cases." : "Enter the amount.");
           const saleRef = doc(collection(db, "sales"));
+          const isPerancangan = service === "perancangan";
           batch.set(saleRef, {
             uid,
             category: service,
-            subCategory: serviceSub,
+            subCategory: isPerancangan ? null : serviceSub,
             amount: service === "pengurusan" ? null : value,
             count: service === "pengurusan" ? value : null,
+            ...(isPerancangan ? { products: cleanProducts(products), promotion: cleanPromotion(promotion) } : {}),
             date: Timestamp.fromDate(new Date(date)),
             createdAt: serverTimestamp(),
             prospectId: selectedProspect.id,
           });
+          if (isPerancangan && Number(deposit) > 0) {
+            batch.set(doc(collection(db, "collections")), {
+              uid,
+              saleRef: saleRef.id,
+              kind: "deposit",
+              amountCollected: Number(deposit),
+              date: Timestamp.fromDate(new Date(date)),
+              createdAt: serverTimestamp(),
+              prospectId: selectedProspect.id,
+              note: "Deposit",
+            });
+          }
           prospectPatch.linkedSaleId = saleRef.id;
         }
         batch.set(doc(collection(db, "prospects", selectedProspect.id, "updates")), {
@@ -423,8 +446,9 @@ export function LogActivityForm({
                           </SelectContent>
                         </Select>
                       </div>
+                      {service !== "perancangan" && (
                       <div className="space-y-2">
-                        <Label htmlFor="sale-sub">Type</Label>
+                        <Label htmlFor="sale-sub">{service === "pengurusan" ? "Package" : "Type"}</Label>
                         <Select value={serviceSub} onValueChange={setServiceSub}>
                           <SelectTrigger id="sale-sub"><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -434,10 +458,17 @@ export function LogActivityForm({
                           </SelectContent>
                         </Select>
                       </div>
+                      )}
                       <div className="space-y-2">
-                        <Label htmlFor="sale-value">{service === "pengurusan" ? "Number of cases" : "Amount (RM)"}</Label>
+                        <Label htmlFor="sale-value">{service === "pengurusan" ? "Number of cases" : service === "perancangan" ? "Total amount (RM)" : "Amount (RM)"}</Label>
                         <Input id="sale-value" type="number" min={0} step={service === "pengurusan" ? "1" : "0.01"} value={saleValue} onChange={(e) => setSaleValue(e.target.value)} />
                       </div>
+                    </div>
+                  )}
+                  {recordSale && service === "perancangan" && (
+                    <div className="space-y-4">
+                      <ProductPromoFields idPrefix="log-sale" products={products} onProductsChange={setProducts} promotion={promotion} onPromotionChange={setPromotion} />
+                      <DepositField id="log-sale-deposit" value={deposit} onChange={setDeposit} />
                     </div>
                   )}
                 </div>

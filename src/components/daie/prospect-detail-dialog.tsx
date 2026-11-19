@@ -24,6 +24,8 @@ import { formatDate } from "@/lib/utils";
 import { PIPPPAS_STAGES, type PipppasStage, type SalesCategory } from "@/lib/types";
 import type { ProspectWithId } from "@/lib/data";
 import { ProspectProfileForm } from "@/components/daie/prospect-profile-form";
+import { ProductPromoFields, DepositField } from "@/components/daie/sale-detail-fields";
+import { cleanProducts, cleanPromotion, WASITAH_PACKAGES } from "@/lib/sale-details";
 
 interface HistoryItem {
   id: string;
@@ -55,11 +57,14 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
 
   // Close & Record Sale form
   const [saleCategory, setSaleCategory] = useState<SalesCategory>("perancangan");
-  const [saleSubCategory, setSaleSubCategory] = useState<"wasiat" | "hibah" | "berlian" | "mutiara" | "besar" | "kecil">("wasiat");
+  const [saleSubCategory, setSaleSubCategory] = useState<string>("wasiat");
   const [saleAmount, setSaleAmount] = useState("");
   const [saleDate, setSaleDate] = useState(todayISO());
   const [recordCollection, setRecordCollection] = useState(true);
   const [collectionAmount, setCollectionAmount] = useState("");
+  // Perancangan: products and promotion for analysis (no Wasiat/Hibah split since 2026-11-19).
+  const [products, setProducts] = useState<string[]>([""]);
+  const [promotion, setPromotion] = useState("");
 
   useEffect(() => {
     getDocs(query(collection(db, "prospects", prospect.id, "updates"), orderBy("createdAt", "asc"))).then((snap) => {
@@ -124,28 +129,33 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
     setStatus("saving");
     try {
       const isRm = saleCategory === "perancangan" || saleCategory === "kesPusaka";
+      const isPerancangan = saleCategory === "perancangan";
       const batch = writeBatch(db);
       const saleRef = doc(collection(db, "sales"));
       batch.set(saleRef, {
         uid: prospect.uid,
         category: saleCategory,
-        subCategory: saleSubCategory,
+        subCategory: isPerancangan ? null : saleSubCategory,
         amount: isRm ? Number(saleAmount) : null,
         count: saleCategory === "pengurusan" ? Number(saleAmount) : null,
+        ...(isPerancangan ? { products: cleanProducts(products), promotion: cleanPromotion(promotion) } : {}),
         date: Timestamp.fromDate(new Date(saleDate)),
         createdAt: serverTimestamp(),
         prospectId: prospect.id,
       });
 
-      if (recordCollection && collectionAmount) {
+      // Perancangan: the deposit field; other services: the optional collection.
+      if ((isPerancangan || recordCollection) && Number(collectionAmount) > 0) {
         const collectionRef = doc(collection(db, "collections"));
         batch.set(collectionRef, {
           uid: prospect.uid,
           saleRef: saleRef.id,
+          kind: "deposit",
           amountCollected: Number(collectionAmount),
           date: Timestamp.fromDate(new Date(saleDate)),
           createdAt: serverTimestamp(),
           prospectId: prospect.id,
+          note: "Deposit",
         });
       }
 
@@ -294,22 +304,16 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
                 </RadioGroup>
               </div>
 
-              {saleCategory === "perancangan" && (
-                <div className="space-y-2">
-                  <Label>Type</Label>
-                  <RadioGroup value={saleSubCategory} onValueChange={(v) => setSaleSubCategory(v as "wasiat" | "hibah")} className="flex gap-6">
-                    <label className="flex items-center gap-1.5 text-sm"><RadioGroupItem value="wasiat" id="close-wasiat" /> Wasiat</label>
-                    <label className="flex items-center gap-1.5 text-sm"><RadioGroupItem value="hibah" id="close-hibah" /> Hibah</label>
-                  </RadioGroup>
-                </div>
-              )}
+
               {saleCategory === "pengurusan" && (
                 <div className="space-y-2">
-                  <Label>Package</Label>
-                  <RadioGroup value={saleSubCategory} onValueChange={(v) => setSaleSubCategory(v as "berlian" | "mutiara")} className="flex gap-6">
-                    <label className="flex items-center gap-1.5 text-sm"><RadioGroupItem value="berlian" id="close-berlian" /> Berlian</label>
-                    <label className="flex items-center gap-1.5 text-sm"><RadioGroupItem value="mutiara" id="close-mutiara" /> Mutiara</label>
-                  </RadioGroup>
+                  <Label htmlFor="close-package">Package</Label>
+                  <Select value={saleSubCategory} onValueChange={setSaleSubCategory}>
+                    <SelectTrigger id="close-package"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {WASITAH_PACKAGES.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
               {saleCategory === "kesPusaka" && (
@@ -323,7 +327,7 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="close-amount">{saleCategory === "pengurusan" ? "Number of cases" : "Amount (RM)"}</Label>
+                <Label htmlFor="close-amount">{saleCategory === "pengurusan" ? "Number of cases" : saleCategory === "perancangan" ? "Total amount (RM)" : "Amount (RM)"}</Label>
                 <Input id="close-amount" type="number" min={0} step={saleCategory === "pengurusan" ? "1" : "0.01"} required value={saleAmount} onChange={(e) => setSaleAmount(e.target.value)} />
               </div>
               <div className="space-y-2">
@@ -331,15 +335,24 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
                 <Input id="close-date" type="date" required value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
               </div>
 
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={recordCollection} onChange={(e) => setRecordCollection(e.target.checked)} className="h-4 w-4 rounded border-border" />
-                Also record a collection for this
-              </label>
-              {recordCollection && (
-                <div className="space-y-2">
-                  <Label htmlFor="close-collection">Collection amount (RM)</Label>
-                  <Input id="close-collection" type="number" min={0} step="0.01" value={collectionAmount} onChange={(e) => setCollectionAmount(e.target.value)} />
-                </div>
+              {saleCategory === "perancangan" ? (
+                <>
+                  <ProductPromoFields idPrefix="close" products={products} onProductsChange={setProducts} promotion={promotion} onPromotionChange={setPromotion} />
+                  <DepositField id="close-collection" value={collectionAmount} onChange={setCollectionAmount} />
+                </>
+              ) : (
+                <>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={recordCollection} onChange={(e) => setRecordCollection(e.target.checked)} className="h-4 w-4 rounded border-border" />
+                    Also record a collection for this
+                  </label>
+                  {recordCollection && (
+                    <div className="space-y-2">
+                      <Label htmlFor="close-collection">Collection amount (RM)</Label>
+                      <Input id="close-collection" type="number" min={0} step="0.01" value={collectionAmount} onChange={(e) => setCollectionAmount(e.target.value)} />
+                    </div>
+                  )}
+                </>
               )}
 
               {status === "error" && <p className="text-sm font-medium text-red-600">Could not save. Try again.</p>}

@@ -20,7 +20,7 @@ const SERVICE_LABELS: Record<string, string> = {
   pengurusan: "Pengurusan (Al Wasitah)",
   kesPusaka: "Kes Pusaka",
 };
-const SUB_LABELS: Record<string, string> = { wasiat: "Wasiat", hibah: "Hibah", berlian: "Berlian", mutiara: "Mutiara", besar: "Besar", kecil: "Kecil" };
+const SUB_LABELS: Record<string, string> = { wasiat: "Wasiat", hibah: "Hibah", berlian: "Berlian", mutiara: "Mutiara", intan: "Intan", khairat_silver: "Khairat Pusaka Silver", khairat_gold: "Khairat Pusaka Gold", besar: "Besar", kecil: "Kecil" };
 
 /** A client is a prospect who decided to subscribe — a sale was linked at Present Solution (agreed 2026-10-23). */
 export function isClient(p: ProspectWithId): boolean {

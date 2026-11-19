@@ -42,6 +42,7 @@ import { computeDpmPromotionStatus, type DpmPromotionStatus, type RecruitInput }
 import { konvensyenFromSales, type KonvensyenCriterion, type KonvensyenRow } from "@/lib/konvensyen";
 import type { AnalyticsMember, AnalyticsSale } from "@/lib/group-analytics";
 import { malaysiaToday, prevFyPerancangan, ytdPerancangan, yoyWindow } from "@/lib/yoy";
+import type { CaseOption } from "@/lib/sale-details";
 import { inPeriod, type Period } from "@/lib/period";
 import type { QueryDocumentSnapshot, DocumentData } from "firebase-admin/firestore";
 
@@ -82,7 +83,7 @@ export interface TeamMember extends CurrentUser {
   /** Perancangan only — Wasitah and Pusaka are their own totals below, per the requested column breakdown. */
   salesTotal: number;
   collectionTotal: number;
-  /** Pengurusan (Al Wasitah) case count — Berlian + Mutiara combined. */
+  /** Pengurusan (Al Wasitah) case count — every package combined. */
   wasitahTotal: number;
   /** Kes Pusaka RM — Besar + Kecil combined. */
   pusakaTotal: number;
@@ -95,6 +96,10 @@ export interface SalesTotals {
   perancanganHibah: number; // RM — subset of perancangan, for Konvensyen's Hibah Round Table
   pengurusanBerlian: number; // count
   pengurusanMutiara: number; // count
+  /** Every Al Wasitah case, all packages (Berlian, Mutiara, Intan, Khairat Pusaka Silver / Gold). */
+  pengurusanTotal: number; // count
+  /** Cases per package (lib/sale-details WASITAH_PACKAGES); "other" for entries with no package. */
+  pengurusanByPackage: Partial<Record<string, number>>;
   kesPusakaBesar: number; // RM
   kesPusakaKecil: number; // RM
   collectionTotal: number; // RM
@@ -235,6 +240,8 @@ function emptySalesTotals(): SalesTotals {
     perancanganHibah: 0,
     pengurusanBerlian: 0,
     pengurusanMutiara: 0,
+    pengurusanTotal: 0,
+    pengurusanByPackage: {},
     kesPusakaBesar: 0,
     kesPusakaKecil: 0,
     collectionTotal: 0,
@@ -249,6 +256,9 @@ function applySaleToTotals(totals: SalesTotals, sale: SaleDoc): void {
   } else if (sale.category === "pengurusan") {
     if (sale.subCategory === "berlian") totals.pengurusanBerlian += sale.count ?? 0;
     if (sale.subCategory === "mutiara") totals.pengurusanMutiara += sale.count ?? 0;
+    totals.pengurusanTotal += sale.count ?? 0;
+    const pkg = sale.subCategory ?? "other";
+    totals.pengurusanByPackage[pkg] = (totals.pengurusanByPackage[pkg] ?? 0) + (sale.count ?? 0);
   } else if (sale.category === "kesPusaka") {
     if (sale.subCategory === "besar") totals.kesPusakaBesar += sale.amount ?? 0;
     if (sale.subCategory === "kecil") totals.kesPusakaKecil += sale.amount ?? 0;
@@ -334,6 +344,28 @@ function toSaleEntry(doc: QueryDocumentSnapshot<DocumentData>): SaleEntry {
   };
 }
 
+/**
+ * The daie's own Perancangan cases typed into the app (newest first, last
+ * 24 months) — the "for which case" choices when recording a payment.
+ */
+export async function getOwnCasesForUid(uid: string): Promise<CaseOption[]> {
+  const snap = await adminDb.collection("sales").where("uid", "==", uid).where("category", "==", "perancangan").get();
+  const since = new Date();
+  since.setMonth(since.getMonth() - 24);
+  return snap.docs
+    .filter((d) => d.get("source") !== SHEET_IMPORT_SOURCE)
+    .map((d) => ({ d, date: (d.get("date") as { toDate: () => Date }).toDate() }))
+    .filter(({ date }) => date >= since)
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(0, 100)
+    .map(({ d, date }) => {
+      const products = (d.get("products") as string[] | undefined) ?? [];
+      const parts = [date.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }), formatRM(d.get("amount") ?? 0).replace(/\.00$/, "")];
+      if (products.length) parts.push(products.join(", "));
+      return { id: d.id, label: parts.join(" · "), prospectId: (d.get("prospectId") as string | null | undefined) ?? null };
+    });
+}
+
 /** One entry the daie typed into the app, newest first — My Sales "Recent entries". */
 export interface RecentEntry {
   id: string;
@@ -348,7 +380,7 @@ export interface RecentEntry {
   replaced: boolean;
 }
 
-const SUB_LABELS: Record<string, string> = { wasiat: "Wasiat", hibah: "Hibah", berlian: "Berlian", mutiara: "Mutiara", besar: "Besar", kecil: "Kecil" };
+const SUB_LABELS: Record<string, string> = { wasiat: "Wasiat", hibah: "Hibah", berlian: "Berlian", mutiara: "Mutiara", intan: "Intan", khairat_silver: "Khairat Pusaka Silver", khairat_gold: "Khairat Pusaka Gold", besar: "Besar", kecil: "Kecil" };
 
 /**
  * The daie's own last `limit` app entries (sales and payments), by when they
@@ -367,7 +399,8 @@ export async function getRecentEntriesForUid(uid: string, limit = 10): Promise<R
   for (const d of salesSnap.docs) {
     if (d.get("source") === SHEET_IMPORT_SOURCE) continue;
     const cat = d.get("category") as string;
-    const sub = SUB_LABELS[d.get("subCategory") as string] ?? null;
+    const products = (d.get("products") as string[] | undefined) ?? [];
+    const sub = products.length ? products.join(", ") : (SUB_LABELS[d.get("subCategory") as string] ?? null);
     const base = cat === "perancangan" ? "Perancangan" : cat === "pengurusan" ? "Wasitah" : "Kes Pusaka";
     rows.push({
       id: d.id,
@@ -380,7 +413,9 @@ export async function getRecentEntriesForUid(uid: string, limit = 10): Promise<R
     });
   }
   for (const d of collectionsSnap.docs) {
-    rows.push({ id: d.id, kind: "payment", label: "Payment received", value: formatRM(d.get("amountCollected") ?? 0), date: iso(d), replaced: false, at: createdMs(d) });
+    const note = d.get("note") as string | null | undefined;
+    const label = d.get("kind") === "deposit" ? "Deposit paid" : "Payment received";
+    rows.push({ id: d.id, kind: "payment", label: note && note !== "Deposit" ? `${label} · ${note}` : label, value: formatRM(d.get("amountCollected") ?? 0), date: iso(d), replaced: false, at: createdMs(d) });
   }
   rows.sort((a, b) => b.at - a.at || b.date.localeCompare(a.date));
   return rows.slice(0, limit).map((r) => ({ id: r.id, kind: r.kind, label: r.label, value: r.value, date: r.date, replaced: r.replaced }));
@@ -442,12 +477,27 @@ export function sumTotals(list: SalesTotals[]): SalesTotals {
       perancanganHibah: acc.perancanganHibah + t.perancanganHibah,
       pengurusanBerlian: acc.pengurusanBerlian + t.pengurusanBerlian,
       pengurusanMutiara: acc.pengurusanMutiara + t.pengurusanMutiara,
+      pengurusanTotal: acc.pengurusanTotal + t.pengurusanTotal,
+      pengurusanByPackage: mergeCounts(acc.pengurusanByPackage, t.pengurusanByPackage),
       kesPusakaBesar: acc.kesPusakaBesar + t.kesPusakaBesar,
       kesPusakaKecil: acc.kesPusakaKecil + t.kesPusakaKecil,
       collectionTotal: acc.collectionTotal + t.collectionTotal,
     }),
-    { perancangan: 0, perancanganWasiat: 0, perancanganHibah: 0, pengurusanBerlian: 0, pengurusanMutiara: 0, kesPusakaBesar: 0, kesPusakaKecil: 0, collectionTotal: 0 },
+    emptySalesTotals(),
   );
+}
+
+function mergeCounts(a: Partial<Record<string, number>>, b: Partial<Record<string, number>>): Partial<Record<string, number>> {
+  const out = { ...a };
+  for (const [k, v] of Object.entries(b)) out[k] = (out[k] ?? 0) + (v ?? 0);
+  return out;
+}
+
+/** Wasitah cases per package in a list of sale entries (all packages; "other" when none set). */
+function wasitahByPackage(entries: SaleEntry[]): Partial<Record<string, number>> {
+  const out: Partial<Record<string, number>> = {};
+  for (const e of entries) if (e.category === "pengurusan") out[e.subCategory ?? "other"] = (out[e.subCategory ?? "other"] ?? 0) + (e.count ?? 0);
+  return out;
 }
 
 /** One unit's production in one month — see getGroupSalesByMonth. */
@@ -456,7 +506,7 @@ export interface UnitMonthSales {
   unitId: string;
   /** RM */
   perancangan: number;
-  /** Al Wasitah cases (Berlian + Mutiara) */
+  /** Al Wasitah cases, every package */
   pengurusan: number;
   /** RM (Besar + Kecil) */
   pusaka: number;
@@ -658,7 +708,7 @@ export async function getTeamWithTotalsFor(downline: CurrentUser[]): Promise<Tea
       ...member,
       salesTotal: t.perancangan,
       collectionTotal: t.collectionTotal,
-      wasitahTotal: t.pengurusanBerlian + t.pengurusanMutiara,
+      wasitahTotal: t.pengurusanTotal,
       pusakaTotal: t.kesPusakaBesar + t.kesPusakaKecil,
     };
   });
@@ -1007,7 +1057,7 @@ export async function getDpmPromotionStatusForUid(user: CurrentUser): Promise<Dp
 
   return computeDpmPromotionStatus({
     asOfIso,
-    alWasitahKes: totals.pengurusanBerlian + totals.pengurusanMutiara,
+    alWasitahKes: totals.pengurusanTotal,
     perancangan: totals.perancangan,
     dateLicensed: user.dateLicensed,
     selfWasitahActive: selfWasitah.active,
@@ -1030,7 +1080,7 @@ export interface TeamReportRow {
   /** Perancangan for the year-on-year view: FY24/25 total and FY25/26 completed-months YTD (see lib/yoy.ts). */
   yoy: { prev: number; ytd: number };
   /** Production in the report's period, for the Producers view. Wasitah is a case count; the rest RM. */
-  periodSales: { perancangan: number; berlian: number; mutiara: number; pusaka: number };
+  periodSales: { perancangan: number; wasitah: number; wasitahByPackage: Partial<Record<string, number>>; pusaka: number };
   /** Current perunding (isActiveStatus) — the denominator for "x of y produced". */
   active: boolean;
 }
@@ -1081,6 +1131,8 @@ export async function getTeamReportRows(user: CurrentUser, period: Period): Prom
       perancanganHibah: entries.filter((e) => e.category === "perancangan" && e.subCategory === "hibah").reduce((s, e) => s + (e.amount ?? 0), 0),
       pengurusanBerlian: entries.filter((e) => e.category === "pengurusan" && e.subCategory === "berlian").reduce((s, e) => s + (e.count ?? 0), 0),
       pengurusanMutiara: entries.filter((e) => e.category === "pengurusan" && e.subCategory === "mutiara").reduce((s, e) => s + (e.count ?? 0), 0),
+      pengurusanTotal: entries.filter((e) => e.category === "pengurusan").reduce((s, e) => s + (e.count ?? 0), 0),
+      pengurusanByPackage: wasitahByPackage(entries),
       kesPusakaBesar: entries.filter((e) => e.category === "kesPusaka" && e.subCategory === "besar").reduce((s, e) => s + (e.amount ?? 0), 0),
       kesPusakaKecil: entries.filter((e) => e.category === "kesPusaka" && e.subCategory === "kecil").reduce((s, e) => s + (e.amount ?? 0), 0),
       collectionTotal: collectedByUid.get(member.uid) ?? 0,
@@ -1091,8 +1143,8 @@ export async function getTeamReportRows(user: CurrentUser, period: Period): Prom
     const sum = (list: SaleEntry[], field: "amount" | "count") => list.reduce((t, e) => t + (e[field] ?? 0), 0);
     const periodSales = {
       perancangan: sum(inP.filter((e) => e.category === "perancangan"), "amount"),
-      berlian: sum(inP.filter((e) => e.category === "pengurusan" && e.subCategory === "berlian"), "count"),
-      mutiara: sum(inP.filter((e) => e.category === "pengurusan" && e.subCategory === "mutiara"), "count"),
+      wasitah: sum(inP.filter((e) => e.category === "pengurusan"), "count"),
+      wasitahByPackage: wasitahByPackage(inP),
       pusaka: sum(inP.filter((e) => e.category === "kesPusaka"), "amount"),
     };
 

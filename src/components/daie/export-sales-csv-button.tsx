@@ -1,5 +1,6 @@
 "use client";
 
+import { WASITAH_PACKAGES } from "@/lib/sale-details";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatRM } from "@/lib/utils";
@@ -17,8 +18,8 @@ export function ExportSalesCsvButton({
     const headers = [
       "Scope",
       "Perancangan",
-      "Pengurusan - Berlian",
-      "Pengurusan - Mutiara",
+      ...WASITAH_PACKAGES.map((p) => `Wasitah - ${p.label}`),
+      "Wasitah - total",
       "Kes Pusaka - Besar",
       "Kes Pusaka - Kecil",
       "Collection",
@@ -27,8 +28,8 @@ export function ExportSalesCsvButton({
       return [
         scope,
         formatRM(t.perancangan),
-        String(t.pengurusanBerlian),
-        String(t.pengurusanMutiara),
+        ...WASITAH_PACKAGES.map((p) => String(t.pengurusanByPackage[p.value] ?? 0)),
+        String(t.pengurusanTotal),
         formatRM(t.kesPusakaBesar),
         formatRM(t.kesPusakaKecil),
         formatRM(t.collectionTotal),

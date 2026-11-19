@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { wasitahBreakdown } from "@/lib/sale-details";
 import { formatRM } from "@/lib/utils";
 import type { SalesTotals } from "@/lib/data";
 
@@ -21,9 +22,9 @@ export function SalesComparison({
   /** Header for the group column — e.g. a unit's or the whole Kausar Group's name when a KDE switches view. */
   groupLabel?: string;
 }) {
-  const personalPengurusan = personalTotals.pengurusanBerlian + personalTotals.pengurusanMutiara;
+  const personalPengurusan = personalTotals.pengurusanTotal;
   const personalKesPusaka = personalTotals.kesPusakaBesar + personalTotals.kesPusakaKecil;
-  const groupPengurusan = groupTotals ? groupTotals.pengurusanBerlian + groupTotals.pengurusanMutiara : 0;
+  const groupPengurusan = groupTotals ? groupTotals.pengurusanTotal : 0;
   const groupKesPusaka = groupTotals ? groupTotals.kesPusakaBesar + groupTotals.kesPusakaKecil : 0;
 
   const rows = [
@@ -35,9 +36,9 @@ export function SalesComparison({
     {
       label: "Pengurusan (Al Wasitah)",
       personal: `${personalPengurusan} case(s)`,
-      personalBreakdown: `Berlian: ${personalTotals.pengurusanBerlian} · Mutiara: ${personalTotals.pengurusanMutiara}`,
+      personalBreakdown: wasitahBreakdown(personalTotals.pengurusanByPackage) || undefined,
       group: groupTotals ? `${groupPengurusan} case(s)` : "—",
-      groupBreakdown: groupTotals ? `Berlian: ${groupTotals.pengurusanBerlian} · Mutiara: ${groupTotals.pengurusanMutiara}` : undefined,
+      groupBreakdown: groupTotals ? wasitahBreakdown(groupTotals.pengurusanByPackage) || undefined : undefined,
     },
     {
       label: "Kes Pusaka",

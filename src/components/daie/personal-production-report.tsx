@@ -75,7 +75,7 @@ export function PersonalProductionReport({ entries, title }: { entries: SaleEntr
                 <TableRow key={row.month} className={row.month === highestMonth?.month ? "bg-accent/45" : undefined}>
                   <TableCell className="font-medium">{monthLabel(row.month)}</TableCell>
                   <TableCell className="text-right">{formatRM(row.perancangan)}</TableCell>
-                  <TableCell className="text-right">{row.pengurusanBerlian + row.pengurusanMutiara}</TableCell>
+                  <TableCell className="text-right">{row.pengurusanTotal}</TableCell>
                   <TableCell className="text-right">{formatRM(row.kesPusakaBesar + row.kesPusakaKecil)}</TableCell>
                 </TableRow>
               ))}

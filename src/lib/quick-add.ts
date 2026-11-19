@@ -8,9 +8,9 @@ export type QuickAddType = (typeof QUICK_ADD_TYPES)[number];
 export const QUICK_ADD_LABELS: Record<QuickAddType, { label: string; title: string; hint: string }> = {
   activity: { label: "Activity", title: "Log an activity", hint: "PIPPPAS step, training or JFW. Counts toward your traffic light." },
   prospect: { label: "New prospect", title: "New prospect", hint: "Add someone to your pipeline." },
-  perancangan: { label: "Perancangan", title: "Perancangan case", hint: "A new wasiat or hibah case." },
+  perancangan: { label: "Perancangan", title: "Perancangan case", hint: "Total amount, products and any promotion." },
   payment: { label: "Payment", title: "Payment received", hint: "RM collected for a Perancangan case." },
-  wasitah: { label: "Wasitah", title: "Al Wasitah", hint: "Berlian or Mutiara cases." },
+  wasitah: { label: "Wasitah", title: "Al Wasitah", hint: "Berlian, Mutiara, Intan or Khairat Pusaka cases." },
   pusaka: { label: "Kes Pusaka", title: "Kes Pusaka", hint: "Besar or Kecil estate case." },
 };
 

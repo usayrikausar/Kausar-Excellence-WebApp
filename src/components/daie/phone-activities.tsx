@@ -216,7 +216,7 @@ export function PhoneProspectList({ prospects }: { prospects: ProspectWithId[] }
 }
 
 const SERVICE_LABELS: Record<string, string> = { perancangan: "Perancangan", pengurusan: "Al Wasitah", kesPusaka: "Kes Pusaka" };
-const SUB_LABELS: Record<string, string> = { wasiat: "Wasiat", hibah: "Hibah", berlian: "Berlian", mutiara: "Mutiara", besar: "Besar", kecil: "Kecil" };
+const SUB_LABELS: Record<string, string> = { wasiat: "Wasiat", hibah: "Hibah", berlian: "Berlian", mutiara: "Mutiara", intan: "Intan", khairat_silver: "Khairat Pusaka Silver", khairat_gold: "Khairat Pusaka Gold", besar: "Besar", kecil: "Kecil" };
 type ClientFilter = "all" | "in_progress" | "completed";
 
 /** Clients (a sale is linked): what they took, when, and the after-sale step. Newest first. */

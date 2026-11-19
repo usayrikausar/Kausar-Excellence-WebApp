@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { addDoc, collection, serverTimestamp, Timestamp } from "firebase/firestore";
+import { addDoc, collection, doc, serverTimestamp, Timestamp, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ProductPromoFields, DepositField } from "@/components/daie/sale-detail-fields";
+import { cleanProducts, cleanPromotion, WASITAH_PACKAGES, type CaseOption, type WasitahPackage } from "@/lib/sale-details";
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -55,11 +57,14 @@ export function PerancanganForm({
   uid,
   prospects = [],
   initialMode = "case",
+  cases = [],
   onSaved,
 }: {
   uid: string;
   prospects?: ProspectOption[];
   initialMode?: "case" | "collection";
+  /** The daie's own Perancangan cases, for "Payment received → for which case". */
+  cases?: CaseOption[];
   /** Called after a successful save — the quick-add screen uses it to go back. */
   onSaved?: () => void;
 }) {
@@ -70,8 +75,8 @@ export function PerancanganForm({
         <CardTitle>Perancangan</CardTitle>
         <CardDescription>
           {mode === "case"
-            ? "Wasiat or hibah planning case — Perancangan totals (and the Hibah Round Table tiers) combine both."
-            : "Payment received for a Perancangan case — enter the RM amount collected."}
+            ? "A new planning case: the total amount, the products in it and any promotion."
+            : "A payment received for a Perancangan case, recorded when it comes in."}
         </CardDescription>
         <div role="tablist" aria-label="Perancangan entry type" className="mt-2 flex w-fit gap-1 rounded-lg bg-muted p-1">
           {(["case", "collection"] as const).map((m) => (
@@ -92,7 +97,7 @@ export function PerancanganForm({
         </div>
       </CardHeader>
       <CardContent>
-        {mode === "case" ? <PerancanganCaseFields uid={uid} prospects={prospects} onSaved={onSaved} /> : <CollectionFields uid={uid} prospects={prospects} onSaved={onSaved} />}
+        {mode === "case" ? <PerancanganCaseFields uid={uid} prospects={prospects} onSaved={onSaved} /> : <CollectionFields uid={uid} prospects={prospects} cases={cases} onSaved={onSaved} />}
       </CardContent>
     </Card>
   );
@@ -100,8 +105,10 @@ export function PerancanganForm({
 
 function PerancanganCaseFields({ uid, prospects, onSaved }: { uid: string; prospects: ProspectOption[]; onSaved?: () => void }) {
   const router = useRouter();
-  const [subCategory, setSubCategory] = useState<"wasiat" | "hibah">("wasiat");
   const [amount, setAmount] = useState("");
+  const [products, setProducts] = useState<string[]>([""]);
+  const [promotion, setPromotion] = useState("");
+  const [deposit, setDeposit] = useState("");
   const [date, setDate] = useState(todayISO());
   const [prospectId, setProspectId] = useState("none");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -110,17 +117,41 @@ function PerancanganCaseFields({ uid, prospects, onSaved }: { uid: string; prosp
     e.preventDefault();
     setStatus("saving");
     try {
-      await addDoc(collection(db, "sales"), {
+      // One batch: the case, and its deposit as a collection against it.
+      const batch = writeBatch(db);
+      const saleRef = doc(collection(db, "sales"));
+      const linked = prospectId === "none" ? null : prospectId;
+      const when = Timestamp.fromDate(new Date(date));
+      batch.set(saleRef, {
         uid,
         category: "perancangan",
-        subCategory,
+        // No Wasiat/Hibah split any more (agreed 2026-11-19): one total, products listed instead.
+        subCategory: null,
         amount: Number(amount),
         count: null,
-        date: Timestamp.fromDate(new Date(date)),
+        products: cleanProducts(products),
+        promotion: cleanPromotion(promotion),
+        date: when,
         createdAt: serverTimestamp(),
-        prospectId: prospectId === "none" ? null : prospectId,
+        prospectId: linked,
       });
+      if (Number(deposit) > 0) {
+        batch.set(doc(collection(db, "collections")), {
+          uid,
+          saleRef: saleRef.id,
+          kind: "deposit",
+          amountCollected: Number(deposit),
+          date: when,
+          createdAt: serverTimestamp(),
+          prospectId: linked,
+          note: "Deposit",
+        });
+      }
+      await batch.commit();
       setAmount("");
+      setProducts([""]);
+      setPromotion("");
+      setDeposit("");
       setProspectId("none");
       setStatus("saved");
       router.refresh();
@@ -133,14 +164,7 @@ function PerancanganCaseFields({ uid, prospects, onSaved }: { uid: string; prosp
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label>Type</Label>
-        <RadioGroup value={subCategory} onValueChange={(v) => setSubCategory(v as "wasiat" | "hibah")} className="flex gap-6">
-          <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="wasiat" id="perancangan-wasiat" /> Wasiat</label>
-          <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="hibah" id="perancangan-hibah" /> Hibah</label>
-        </RadioGroup>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="perancangan-amount">Amount (RM)</Label>
+        <Label htmlFor="perancangan-amount">Total amount (RM)</Label>
         <Input
           id="perancangan-amount"
           type="number"
@@ -151,6 +175,8 @@ function PerancanganCaseFields({ uid, prospects, onSaved }: { uid: string; prosp
           onChange={(e) => setAmount(e.target.value)}
         />
       </div>
+      <ProductPromoFields idPrefix="perancangan" products={products} onProductsChange={setProducts} promotion={promotion} onPromotionChange={setPromotion} />
+      <DepositField id="perancangan-deposit" value={deposit} onChange={setDeposit} />
       <div className="space-y-2">
         <Label htmlFor="perancangan-date">Date</Label>
         <Input id="perancangan-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
@@ -168,7 +194,7 @@ function PerancanganCaseFields({ uid, prospects, onSaved }: { uid: string; prosp
 
 export function PengurusanForm({ uid, prospects = [], onSaved }: { uid: string; prospects?: ProspectOption[]; onSaved?: () => void }) {
   const router = useRouter();
-  const [subCategory, setSubCategory] = useState<"berlian" | "mutiara">("berlian");
+  const [subCategory, setSubCategory] = useState<WasitahPackage>("berlian");
   const [count, setCount] = useState("");
   const [date, setDate] = useState(todayISO());
   const [prospectId, setProspectId] = useState("none");
@@ -202,26 +228,18 @@ export function PengurusanForm({ uid, prospects = [], onSaved }: { uid: string; 
     <Card>
       <CardHeader>
         <CardTitle>Pengurusan / Al Wasitah</CardTitle>
-        <CardDescription>Berlian or Mutiara package — enter the number of cases.</CardDescription>
+        <CardDescription>Pick the package and enter the number of cases.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Package</Label>
-            <RadioGroup
-              value={subCategory}
-              onValueChange={(v) => setSubCategory(v as "berlian" | "mutiara")}
-              className="flex gap-6"
-            >
-              <label className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value="berlian" id="pengurusan-berlian" />
-                Berlian
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value="mutiara" id="pengurusan-mutiara" />
-                Mutiara
-              </label>
-            </RadioGroup>
+            <Label htmlFor="pengurusan-package">Package</Label>
+            <Select value={subCategory} onValueChange={(v) => setSubCategory(v as WasitahPackage)}>
+              <SelectTrigger id="pengurusan-package"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {WASITAH_PACKAGES.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="pengurusan-count">Number of cases</Label>
@@ -341,12 +359,15 @@ export function KesPusakaForm({ uid, prospects = [], onSaved }: { uid: string; p
  * optional prospect link (saleRef is left null — no UI here to pick which
  * specific prior sale a payment is against, that's a bigger feature).
  */
-function CollectionFields({ uid, prospects, onSaved }: { uid: string; prospects: ProspectOption[]; onSaved?: () => void }) {
+function CollectionFields({ uid, prospects, cases, onSaved }: { uid: string; prospects: ProspectOption[]; cases: CaseOption[]; onSaved?: () => void }) {
   const router = useRouter();
   const [amountCollected, setAmountCollected] = useState("");
   const [date, setDate] = useState(todayISO());
+  const [caseId, setCaseId] = useState("none");
   const [prospectId, setProspectId] = useState("none");
+  const [note, setNote] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const picked = cases.find((c) => c.id === caseId) ?? null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -354,14 +375,19 @@ function CollectionFields({ uid, prospects, onSaved }: { uid: string; prospects:
     try {
       await addDoc(collection(db, "collections"), {
         uid,
-        saleRef: null,
+        saleRef: picked ? picked.id : null,
+        kind: "payment",
         amountCollected: Number(amountCollected),
         date: Timestamp.fromDate(new Date(date)),
         createdAt: serverTimestamp(),
-        prospectId: prospectId === "none" ? null : prospectId,
+        // A picked case carries its own prospect link.
+        prospectId: picked ? picked.prospectId : prospectId === "none" ? null : prospectId,
+        note: note.trim().slice(0, 200) || null,
       });
       setAmountCollected("");
+      setCaseId("none");
       setProspectId("none");
+      setNote("");
       setStatus("saved");
       router.refresh();
       onSaved?.();
@@ -372,8 +398,16 @@ function CollectionFields({ uid, prospects, onSaved }: { uid: string; prospects:
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="rounded-lg border border-accent/40 bg-accent/10 p-3 text-xs leading-relaxed text-ink">
+        <p className="font-semibold">Why record each payment?</p>
+        <p className="mt-1">
+          Collection helps work out contest qualification. Example: a RM10,000 case with a RM4,000 deposit, the rest paid in 3 instalments. Record each
+          instalment when it comes in, say in February, and a January–June contest can count it. The more complete your updates, the more accurate your
+          collection figure.
+        </p>
+      </div>
       <div className="space-y-2">
-        <Label htmlFor="collection-amount">Amount collected (RM)</Label>
+        <Label htmlFor="collection-amount">Amount received (RM)</Label>
         <Input
           id="collection-amount"
           type="number"
@@ -385,10 +419,28 @@ function CollectionFields({ uid, prospects, onSaved }: { uid: string; prospects:
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="collection-date">Date</Label>
+        <Label htmlFor="collection-date">Date received</Label>
         <Input id="collection-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
       </div>
-      <ProspectLinkSelect prospects={prospects} value={prospectId} onChange={setProspectId} idPrefix="collection" />
+      {cases.length > 0 && (
+        <div className="space-y-2">
+          <Label htmlFor="collection-case">For which case (optional)</Label>
+          <Select value={caseId} onValueChange={setCaseId}>
+            <SelectTrigger id="collection-case"><SelectValue placeholder="Not linked" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not linked to a case</SelectItem>
+              {cases.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      {!picked && <ProspectLinkSelect prospects={prospects} value={prospectId} onChange={setProspectId} idPrefix="collection" />}
+      <div className="space-y-2">
+        <Label htmlFor="collection-note">Note (optional)</Label>
+        <Input id="collection-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. 2nd instalment of 3" maxLength={200} />
+      </div>
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={status === "saving"}>
           {status === "saving" ? "Saving…" : "Add payment"}
