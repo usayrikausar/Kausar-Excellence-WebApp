@@ -36,7 +36,7 @@ import type {
 } from "@/lib/types";
 import { computeOnboardingStatus, type OnboardingStatus } from "@/lib/onboarding";
 import { UNIT_LABELS } from "@/lib/constants";
-import { isActiveStatus } from "@/lib/utils";
+import { formatRM, isActiveStatus } from "@/lib/utils";
 import { computeMonthlyScore, type MonthKey, type MonthlyScore } from "@/lib/scoring";
 import { computeDpmPromotionStatus, type DpmPromotionStatus, type RecruitInput } from "@/lib/promotion";
 import { konvensyenFromSales, type KonvensyenCriterion, type KonvensyenRow } from "@/lib/konvensyen";
@@ -332,6 +332,58 @@ function toSaleEntry(doc: QueryDocumentSnapshot<DocumentData>): SaleEntry {
     count: data.count,
     date: date.toDate().toISOString(),
   };
+}
+
+/** One entry the daie typed into the app, newest first — My Sales "Recent entries". */
+export interface RecentEntry {
+  id: string;
+  kind: "sale" | "payment";
+  /** e.g. "Perancangan · Hibah", "Wasitah · Berlian", "Payment received". */
+  label: string;
+  /** "RM 5,000.00" or "2 kes". */
+  value: string;
+  /** ISO date of the case/payment. */
+  date: string;
+  /** Perancangan the monthly sheet import has since replaced (counted once, from the sheet). */
+  replaced: boolean;
+}
+
+const SUB_LABELS: Record<string, string> = { wasiat: "Wasiat", hibah: "Hibah", berlian: "Berlian", mutiara: "Mutiara", besar: "Besar", kecil: "Kecil" };
+
+/**
+ * The daie's own last `limit` app entries (sales and payments), by when they
+ * were keyed in. Sheet-imported figures are left out — this is for checking
+ * that what you just recorded went in.
+ */
+export async function getRecentEntriesForUid(uid: string, limit = 10): Promise<RecentEntry[]> {
+  const [salesSnap, collectionsSnap] = await Promise.all([
+    adminDb.collection("sales").where("uid", "==", uid).get(),
+    adminDb.collection("collections").where("uid", "==", uid).get(),
+  ]);
+  const kept = new Set(withoutSupersededSales(salesSnap.docs).map((d) => d.id));
+  const createdMs = (d: QueryDocumentSnapshot<DocumentData>) => (d.get("createdAt") as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+  const iso = (d: QueryDocumentSnapshot<DocumentData>) => (d.get("date") as { toDate: () => Date }).toDate().toISOString();
+  const rows: Array<RecentEntry & { at: number }> = [];
+  for (const d of salesSnap.docs) {
+    if (d.get("source") === SHEET_IMPORT_SOURCE) continue;
+    const cat = d.get("category") as string;
+    const sub = SUB_LABELS[d.get("subCategory") as string] ?? null;
+    const base = cat === "perancangan" ? "Perancangan" : cat === "pengurusan" ? "Wasitah" : "Kes Pusaka";
+    rows.push({
+      id: d.id,
+      kind: "sale",
+      label: sub ? `${base} · ${sub}` : base,
+      value: cat === "pengurusan" ? `${d.get("count") ?? 0} kes` : formatRM(d.get("amount") ?? 0),
+      date: iso(d),
+      replaced: !kept.has(d.id),
+      at: createdMs(d),
+    });
+  }
+  for (const d of collectionsSnap.docs) {
+    rows.push({ id: d.id, kind: "payment", label: "Payment received", value: formatRM(d.get("amountCollected") ?? 0), date: iso(d), replaced: false, at: createdMs(d) });
+  }
+  rows.sort((a, b) => b.at - a.at || b.date.localeCompare(a.date));
+  return rows.slice(0, limit).map((r) => ({ id: r.id, kind: r.kind, label: r.label, value: r.value, date: r.date, replaced: r.replaced }));
 }
 
 /**

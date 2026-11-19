@@ -86,36 +86,46 @@ export function SalesTrackingCard({
             <h2 className="font-[family-name:var(--font-display)] text-lg font-bold text-ink">Sales tracking · {label}</h2>
             <p className="truncate text-sm text-muted-foreground">{name}</p>
           </div>
+          {/* Phone: same tab (the report card has a Back button); desktop: a new tab. */}
+          <Link
+            href={`/report-card/${uid}?${periodQuery(period)}&view=sales`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-muted lg:hidden"
+          >
+            <Printer className="h-4 w-4" /> Sales report card
+          </Link>
           <Link
             href={`/report-card/${uid}?${periodQuery(period)}&view=sales`}
             target="_blank"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-muted"
+            className="hidden items-center gap-1.5 rounded-md border border-border bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-muted lg:inline-flex"
           >
             <Printer className="h-4 w-4" /> Print sales report card
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-border p-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="min-w-0 rounded-lg border border-border p-3 sm:p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sales {when}</p>
-            <p className="font-[family-name:var(--font-display)] text-xl font-extrabold text-ink">{formatRM(total)}</p>
+            <p className="font-[family-name:var(--font-display)] text-base font-extrabold text-ink [overflow-wrap:anywhere] sm:text-xl">{formatRM(total)}</p>
             <p className="text-xs text-muted-foreground">Perancangan + Kes Pusaka</p>
           </div>
-          <div className="rounded-lg border border-border p-4">
+          <div className="min-w-0 rounded-lg border border-border p-3 sm:p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Collected {when}</p>
-            <p className="font-[family-name:var(--font-display)] text-xl font-extrabold text-ink">{formatRM(collected)}</p>
+            <p className="font-[family-name:var(--font-display)] text-base font-extrabold text-ink [overflow-wrap:anywhere] sm:text-xl">{formatRM(collected)}</p>
             <p className="text-xs text-muted-foreground">{total > 0 ? `${Math.min(100, Math.round((collected / total) * 100))}% of sales` : `No sales ${when}`}</p>
           </div>
-          <div className="rounded-lg border border-border p-4">
+          <div className="col-span-2 rounded-lg border border-border p-4 sm:col-span-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{single ? "3-month trend" : "Month by month"}</p>
-            <div className="mt-1 flex h-14 items-end gap-2">
+            <div className="mt-1 flex h-16 items-stretch gap-2">
               {trend.map((t) => (
                 <div key={t.monthKey} className="flex flex-1 flex-col items-center gap-0.5">
-                  <div
-                    className={cn("w-full max-w-[28px] rounded-t", single && t.monthKey === period.to ? "bg-primary" : "bg-navy-300")}
-                    style={{ height: `${Math.max(4, Math.round((t.total / maxTrend) * 100))}%` }}
-                    title={`${monthLabel(t.monthKey)}: ${formatRM(t.total)}`}
-                  />
+                  {/* The bar's % height needs a parent with a real height: this flex-1 box. */}
+                  <div className="flex w-full flex-1 items-end justify-center">
+                    <div
+                      className={cn("w-full max-w-[28px] rounded-t", single && t.monthKey === period.to ? "bg-primary" : "bg-navy-300")}
+                      style={{ height: `${Math.max(4, Math.round((t.total / maxTrend) * 100))}%` }}
+                      title={`${monthLabel(t.monthKey)}: ${formatRM(t.total)}`}
+                    />
+                  </div>
                   {trend.length <= 6 && <span className="text-[10px] text-muted-foreground">{monthLabel(t.monthKey, "short")}</span>}
                 </div>
               ))}
@@ -135,7 +145,33 @@ export function SalesTrackingCard({
           <p className="text-sm text-muted-foreground">No personal sales goal set (set on My Goal).</p>
         )}
 
-        <div className="overflow-x-auto">
+        {/* Phone: one line per category, personal over group; no sideways scrolling. */}
+        <ul className="divide-y divide-border text-sm sm:hidden">
+          {rows.map((r) => (
+            <li key={r.label} className="flex items-baseline justify-between gap-3 py-2">
+              <span className="text-ink">{r.label}</span>
+              <span className="shrink-0 text-right tabular-nums">
+                <span className="block font-semibold text-ink">{r.personal}</span>
+                {group && <span className="block text-xs text-muted-foreground">Group {r.group}</span>}
+              </span>
+            </li>
+          ))}
+          <li className="flex items-baseline justify-between gap-3 py-2 font-bold text-ink">
+            <span>Total RM (Perancangan + Pusaka)</span>
+            <span className="shrink-0 text-right tabular-nums">
+              <span className="block">{formatRM(total)}</span>
+              {group && <span className="block text-xs font-semibold text-muted-foreground">Group {formatRM(rmTotal(group))}</span>}
+            </span>
+          </li>
+          <li className="flex items-baseline justify-between gap-3 py-2 text-ink">
+            <span>Collection</span>
+            <span className="shrink-0 text-right tabular-nums">
+              <span className="block font-semibold">{formatRM(collected)}</span>
+              {group && <span className="block text-xs text-muted-foreground">Group {formatRM(groupCollected)}</span>}
+            </span>
+          </li>
+        </ul>
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[420px] border-collapse text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">

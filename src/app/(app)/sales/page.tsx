@@ -6,6 +6,7 @@ import {
   pickViewedDaie,
   getSaleEntriesForUids,
   getCollectionEntriesForUid,
+  getRecentEntriesForUid,
   getCollectionEntriesForUids,
   getGoal,
   getUnits,
@@ -24,6 +25,8 @@ import { ScopeSwitcher } from "@/components/daie/scope-switcher";
 import { currentMonthKey } from "@/lib/scoring";
 import { inPeriod, periodLabel, resolvePeriod } from "@/lib/period";
 import { PerancanganForm, PengurusanForm, KesPusakaForm } from "@/components/daie/sales-forms";
+import { RecordButtons } from "@/components/daie/record-buttons";
+import { RecentEntriesCard } from "@/components/daie/recent-entries-card";
 import { SalesComparison } from "@/components/daie/sales-totals";
 import { ExportSalesCsvButton } from "@/components/daie/export-sales-csv-button";
 import { SalesTrackingCard } from "@/components/daie/sales-tracking-card";
@@ -38,10 +41,11 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const totalsOnly = scope.kind === "overall";
   const period = resolvePeriod(params, currentMonthKey());
 
-  const [{ personalTotals, groupTotals, groupStatusCounts }, allProspects, downline] = await Promise.all([
+  const [{ personalTotals, groupTotals, groupStatusCounts }, allProspects, downline, recentEntries] = await Promise.all([
     getSalesSummary(user),
     getProspectsForUid(user.uid),
     getDownline(user),
+    getRecentEntriesForUid(user.uid),
   ]);
   // Only prospects still in play are worth linking a new sale/collection to.
   const prospects = allProspects.filter((p) => p.status === "active").map((p) => ({ id: p.id, name: p.name }));
@@ -89,13 +93,19 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
         <p className="text-sm text-muted-foreground">Record a new entry, then check your running totals below.</p>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+      {/* Phone: four buttons to the full-screen forms; desktop: the forms inline. */}
+      <div className="lg:hidden">
+        <RecordButtons from="/sales" />
+      </div>
+      <div className="hidden items-start gap-4 lg:grid lg:grid-cols-2 2xl:grid-cols-3">
         <PerancanganForm uid={user.uid} prospects={prospects} />
         <PengurusanForm uid={user.uid} prospects={prospects} />
         <KesPusakaForm uid={user.uid} prospects={prospects} />
       </div>
 
-      <div className="flex justify-end">
+      <RecentEntriesCard entries={recentEntries} />
+
+      <div className="hidden justify-end lg:flex">
         <ExportSalesCsvButton personalTotals={personalTotals} groupTotals={groupTotals} />
       </div>
       <SalesComparison personalTotals={personalTotals} groupTotals={groupTotals} groupStatusCounts={groupStatusCounts} />
@@ -132,7 +142,27 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
             <CardHeader>
               <CardTitle>Kausar Group by unit · {periodLabel(period)}</CardTitle>
             </CardHeader>
-            <CardContent className="overflow-x-auto p-0">
+            {/* Phone: one line per unit */}
+            <CardContent className="space-y-2 lg:hidden">
+              {Object.keys(UNIT_LABELS).map((unitId) => {
+                const r = unitMonthRows.find((x) => x.unitId === unitId);
+                return (
+                  <div key={unitId} className="rounded-lg border border-border p-3 text-sm">
+                    <p className="font-semibold text-ink">{unitLabel(unitId, units)}</p>
+                    <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+                      {formatRM(r?.perancangan ?? 0)} Perancangan · {r?.pengurusan ?? 0} kes Wasitah · {formatRM(r?.pusaka ?? 0)} Pusaka
+                    </p>
+                  </div>
+                );
+              })}
+              <div className="rounded-lg bg-muted p-3 text-sm">
+                <p className="font-bold text-ink">Kausar Group (TGS)</p>
+                <p className="mt-0.5 text-xs font-semibold tabular-nums text-ink">
+                  {formatRM(unitMonthRows.reduce((a, r) => a + r.perancangan, 0))} Perancangan · {unitMonthRows.reduce((a, r) => a + r.pengurusan, 0)} kes · {formatRM(unitMonthRows.reduce((a, r) => a + r.pusaka, 0))} Pusaka
+                </p>
+              </div>
+            </CardContent>
+            <CardContent className="hidden overflow-x-auto p-0 lg:block">
               <Table>
                 <TableHeader>
                   <TableRow>
