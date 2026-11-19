@@ -14,12 +14,21 @@ export function nextDayCompact(iso: string): string {
   return next.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
-/** Google Calendar's "create event" page, pre-filled. The person still presses Save. */
-export function googleCalendarEventUrl(e: { title: string; date: string; details?: string | null; location?: string | null }): string {
+/** "15:00" + 60 min -> "160000"; follow-ups at a time last an hour. */
+function compactTime(time: string, addMinutes = 0): string {
+  const [h, m] = time.split(":").map(Number);
+  const t = Math.min(h * 60 + m + addMinutes, 23 * 60 + 59);
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}${String(t % 60).padStart(2, "0")}00`;
+}
+
+/** Google Calendar's "create event" page, pre-filled. The person still presses Save. With a time, a one-hour appointment. */
+export function googleCalendarEventUrl(e: { title: string; date: string; time?: string | null; details?: string | null; location?: string | null }): string {
+  const d = compactDate(e.date);
+  const timed = !!e.time && /^\d{2}:\d{2}$/.test(e.time);
   const params = new URLSearchParams({
     action: "TEMPLATE",
     text: e.title,
-    dates: `${compactDate(e.date)}/${nextDayCompact(e.date)}`,
+    dates: timed ? `${d}T${compactTime(e.time!)}/${d}T${compactTime(e.time!, 60)}` : `${d}/${nextDayCompact(e.date)}`,
     ctz: "Asia/Kuala_Lumpur",
   });
   if (e.details) params.set("details", e.details);

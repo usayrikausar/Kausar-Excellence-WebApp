@@ -5,6 +5,7 @@
 // Clients as searchable card lists, the team traffic light as cards, and
 // Call / WhatsApp on every prospect with a phone number.
 
+import { formatFollowUp, followUpSortKey } from "@/lib/follow-up";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { FileText, MessageCircle, Phone, Search } from "lucide-react";
@@ -116,7 +117,7 @@ function ProspectCard({ p, onOpen, extra }: { p: ProspectWithId; onOpen: () => v
         <span className="mt-0.5 block text-xs text-muted-foreground">
           {SOURCE_LABELS[p.source] ?? p.source} · {daysAtStep(p)}d at this step
         </span>
-        {p.nextFollowUpDate && <span className="mt-0.5 block text-xs font-semibold text-primary">Follow up {formatDate(p.nextFollowUpDate)}</span>}
+        {p.nextFollowUpDate && <span className="mt-0.5 block text-xs font-semibold text-primary">Follow up {formatFollowUp(p.nextFollowUpDate, p.nextFollowUpTime)}</span>}
         {extra}
       </button>
       {p.phone && (
@@ -147,7 +148,7 @@ export function PhonePipeline({ prospects }: { prospects: ProspectWithId[] }) {
   const { open, dialog } = useDetail(prospects);
   const items = active
     .filter((p) => p.stage === stage)
-    .sort((a, b) => (a.nextFollowUpDate ?? "9999").localeCompare(b.nextFollowUpDate ?? "9999") || a.name.localeCompare(b.name));
+    .sort((a, b) => followUpSortKey(a.nextFollowUpDate, a.nextFollowUpTime).localeCompare(followUpSortKey(b.nextFollowUpDate, b.nextFollowUpTime)) || a.name.localeCompare(b.name));
 
   return (
     <div className="space-y-3">
@@ -182,7 +183,7 @@ export function PhoneProspectList({ prospects }: { prospects: ProspectWithId[] }
   const pool = useMemo(() => prospects.filter((p) => !isClient(p)), [prospects]);
   const rows = pool
     .filter((p) => (status === "all" || p.status === status) && (stage === "all" || p.stage === stage) && matchesSearch(p, search.trim()))
-    .sort((a, b) => (a.nextFollowUpDate ?? "9999").localeCompare(b.nextFollowUpDate ?? "9999") || a.name.localeCompare(b.name));
+    .sort((a, b) => followUpSortKey(a.nextFollowUpDate, a.nextFollowUpTime).localeCompare(followUpSortKey(b.nextFollowUpDate, b.nextFollowUpTime)) || a.name.localeCompare(b.name));
   const count = (s: ProspectStatusFilter) => (s === "all" ? pool.length : pool.filter((p) => p.status === s).length);
 
   return (

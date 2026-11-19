@@ -1,5 +1,6 @@
 "use client";
 
+import { formatFollowUp, followUpSortKey } from "@/lib/follow-up";
 import { useMemo, useState } from "react";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -106,7 +107,7 @@ export function ProspectListTable({ prospects }: { prospects: ProspectWithId[] }
         case "stage": return PIPPPAS_STAGES.indexOf(p.stage);
         case "days": return daysAtStep(p);
         // No follow-up date sorts last either way.
-        case "followUp": return p.nextFollowUpDate ?? (direction === "asc" ? "9999" : "0000");
+        case "followUp": return p.nextFollowUpDate ? followUpSortKey(p.nextFollowUpDate, p.nextFollowUpTime) : direction === "asc" ? "9999" : "0000";
         case "added": return p.createdAt;
       }
     };
@@ -162,7 +163,7 @@ export function ProspectListTable({ prospects }: { prospects: ProspectWithId[] }
                 <TableCell className="text-xs">{SOURCE_LABELS[p.source] ?? p.source}</TableCell>
                 <TableCell><Badge variant="outline">{STAGE_LABELS[p.stage]}</Badge></TableCell>
                 <TableCell className="text-right tabular-nums">{daysAtStep(p)}</TableCell>
-                <TableCell className="whitespace-nowrap text-xs">{p.nextFollowUpDate ? formatDate(p.nextFollowUpDate) : "—"}</TableCell>
+                <TableCell className="whitespace-nowrap text-xs">{p.nextFollowUpDate ? formatFollowUp(p.nextFollowUpDate, p.nextFollowUpTime) : "—"}</TableCell>
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDate(p.createdAt)}</TableCell>
               </TableRow>
             ))}

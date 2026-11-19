@@ -845,6 +845,7 @@ function toProspect(doc: QueryDocumentSnapshot<DocumentData>): ProspectWithId {
     stage: data.stage,
     status: data.status,
     nextFollowUpDate: data.nextFollowUpDate ?? null,
+    nextFollowUpTime: data.nextFollowUpTime ?? null,
     linkedSaleId: data.linkedSaleId ?? null,
     createdAt: data.createdAt?.toDate?.().toISOString() ?? null,
     updatedAt: data.updatedAt?.toDate?.().toISOString() ?? null,
@@ -877,6 +878,7 @@ function toProspectUpdateEntry(prospectId: string, doc: QueryDocumentSnapshot<Do
     stage: data.stage,
     note: data.note,
     nextFollowUpDate: data.nextFollowUpDate ?? null,
+    nextFollowUpTime: data.nextFollowUpTime ?? null,
     createdAt: createdAt.toDate().toISOString(),
   };
 }

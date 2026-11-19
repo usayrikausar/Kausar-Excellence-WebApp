@@ -41,6 +41,14 @@ export async function resetFeedToken(uid: string): Promise<string> {
 
 // --- iCalendar (RFC 5545) -----------------------------------------------
 
+/** A Malaysia-time (UTC+8, no daylight saving) date + "HH:MM" as a UTC stamp, plus `addMinutes`. */
+function utcStamp(date: string, time: string, addMinutes: number): string {
+  const [y, mo, d] = date.split("-").map(Number);
+  const [h, mi] = time.split(":").map(Number);
+  const t = new Date(Date.UTC(y, mo - 1, d, h - 8, mi + addMinutes));
+  return t.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
 function esc(text: string): string {
   return text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 }
@@ -63,6 +71,8 @@ function fold(line: string): string {
 interface FeedEvent {
   uid: string;
   date: string; // YYYY-MM-DD
+  /** "HH:MM" Malaysia time: a one-hour appointment with a 30-minute reminder; none = all-day. */
+  time?: string | null;
   summary: string;
   description?: string;
   location?: string | null;
@@ -86,13 +96,15 @@ function buildIcs(calName: string, events: FeedEvent[]): string {
       "BEGIN:VEVENT",
       `UID:${e.uid}@kausar-excellence`,
       `DTSTAMP:${stamp}`,
-      `DTSTART;VALUE=DATE:${e.date.replace(/-/g, "")}`,
-      `DTEND;VALUE=DATE:${nextDayCompact(e.date)}`,
+      ...(e.time && /^\d{2}:\d{2}$/.test(e.time)
+        ? [`DTSTART:${utcStamp(e.date, e.time, 0)}`, `DTEND:${utcStamp(e.date, e.time, 60)}`]
+        : [`DTSTART;VALUE=DATE:${e.date.replace(/-/g, "")}`, `DTEND;VALUE=DATE:${nextDayCompact(e.date)}`]),
       `SUMMARY:${esc(e.summary)}`,
-      "TRANSP:TRANSPARENT",
+      e.time ? "TRANSP:OPAQUE" : "TRANSP:TRANSPARENT",
     );
     if (e.description) lines.push(`DESCRIPTION:${esc(e.description)}`);
     if (e.location) lines.push(`LOCATION:${esc(e.location)}`);
+    if (e.time) lines.push("BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${esc(e.summary)}`, "TRIGGER:-PT30M", "END:VALARM");
     lines.push("END:VEVENT");
   }
   lines.push("END:VCALENDAR");
@@ -118,7 +130,7 @@ export async function feedForToken(token: string, appUrl: string): Promise<strin
   const sinceIso = since.toISOString().slice(0, 10);
   const [userSnap, prospectsSnap, trainingsSnap] = await Promise.all([
     adminDb.collection("users").doc(uid).get(),
-    adminDb.collection("prospects").where("uid", "==", uid).select("name", "stage", "phone", "status", "nextFollowUpDate").get(),
+    adminDb.collection("prospects").where("uid", "==", uid).select("name", "stage", "phone", "status", "nextFollowUpDate", "nextFollowUpTime").get(),
     adminDb.collection("trainings").where("date", ">=", sinceIso).select("title", "date", "location", "provider", "cpdHours").get(),
   ]);
   if (!userSnap.exists || userSnap.get("subscriptionStatus") === "inactive") return null;
@@ -131,6 +143,7 @@ export async function feedForToken(token: string, appUrl: string): Promise<strin
     events.push({
       uid: `followup-${d.id}-${p.nextFollowUpDate.slice(0, 10)}`,
       date: p.nextFollowUpDate.slice(0, 10),
+      time: typeof p.nextFollowUpTime === "string" && /^\d{2}:\d{2}$/.test(p.nextFollowUpTime) ? p.nextFollowUpTime : null,
       summary: `Follow-up: ${p.name} (${stage})`,
       description: [p.phone ? `Phone: ${p.phone}` : null, `Stage: ${stage}`, `Open in the app: ${appUrl}/activities`].filter(Boolean).join("\n"),
     });

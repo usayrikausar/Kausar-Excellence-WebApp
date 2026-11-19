@@ -420,6 +420,8 @@ export interface ProspectDoc {
   stage: PipppasStage;
   status: ProspectStatus;
   nextFollowUpDate: string | null; // ISO date
+  /** Optional "HH:MM" (Malaysia time) for nextFollowUpDate — a timed appointment in the calendar feed. */
+  nextFollowUpTime?: string | null;
   /** Set once this prospect closes into a real sale (see SaleDoc.prospectId). */
   linkedSaleId: string | null;
   createdAt: unknown;
@@ -458,6 +460,7 @@ export interface ProspectUpdateDoc {
   stage: PipppasStage;
   note: string;
   nextFollowUpDate: string | null;
+  nextFollowUpTime?: string | null;
   createdAt: unknown;
 }
 
@@ -472,6 +475,7 @@ export interface ProspectUpdateEntry {
   stage: PipppasStage;
   note: string;
   nextFollowUpDate: string | null;
+  nextFollowUpTime?: string | null;
   createdAt: string; // ISO
 }
 

@@ -4,6 +4,7 @@
 // in Excel, or re-importing a file that's missing a column entirely, still
 // works instead of silently reading the wrong field.
 
+import { isValidTime } from "@/lib/follow-up";
 import {
   STAGE_LABELS,
   SOURCE_LABELS,
@@ -41,6 +42,7 @@ export const PROSPECT_CSV_HEADERS = [
   "Stage",
   "Status",
   "Next Follow-Up Date",
+  "Next Follow-Up Time",
   "Age",
   "Birthdate",
   "Profession",
@@ -81,6 +83,7 @@ export function prospectToRow(p: ProspectWithId): string[] {
     STAGE_LABELS[p.stage] ?? p.stage,
     STATUS_LABELS[p.status] ?? p.status,
     p.nextFollowUpDate ?? "",
+    p.nextFollowUpDate && isValidTime(p.nextFollowUpTime) ? p.nextFollowUpTime : "",
     p.age != null ? String(p.age) : "",
     p.birthdate ?? "",
     p.profession ? (PROFESSION_LABELS[p.profession] ?? p.profession) : "",
@@ -103,6 +106,7 @@ export interface ParsedProspectFields {
   stage: PipppasStage;
   status: ProspectStatus;
   nextFollowUpDate: string | null;
+  nextFollowUpTime: string | null;
   age: number | null;
   birthdate: string | null;
   profession: ProfessionType | null;
@@ -210,6 +214,10 @@ export function parseProspectCsv(rows: string[][]): { parsed: ParsedProspectRow[
         stage: stage ?? "prospecting",
         status: status ?? "active",
         nextFollowUpDate: isoDateOrNull(cell(row, headerIndex, "Next Follow-Up Date")),
+        nextFollowUpTime: (() => {
+          const t = cell(row, headerIndex, "Next Follow-Up Time").slice(0, 5).padStart(5, "0");
+          return isoDateOrNull(cell(row, headerIndex, "Next Follow-Up Date")) && isValidTime(t) ? t : null;
+        })(),
         age,
         birthdate: isoDateOrNull(cell(row, headerIndex, "Birthdate")),
         profession,

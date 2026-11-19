@@ -86,6 +86,7 @@ export function ImportProspectsCsvDialog({ uid, prospects }: { uid: string; pros
             stage: row.fields.stage,
             note: "Added via CSV import.",
             nextFollowUpDate: row.fields.nextFollowUpDate,
+            nextFollowUpTime: row.fields.nextFollowUpTime,
             createdAt: serverTimestamp(),
           },
         });
@@ -109,6 +110,7 @@ export function ImportProspectsCsvDialog({ uid, prospects }: { uid: string; pros
               stage: row.fields.stage,
               note: "Stage updated via CSV import.",
               nextFollowUpDate: row.fields.nextFollowUpDate,
+              nextFollowUpTime: row.fields.nextFollowUpTime,
               createdAt: serverTimestamp(),
             },
           });

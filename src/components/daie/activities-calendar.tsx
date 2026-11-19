@@ -1,5 +1,6 @@
 "use client";
 
+import { formatTime } from "@/lib/follow-up";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,7 +42,7 @@ export function ActivitiesCalendar({ prospects }: { prospects: ProspectWithId[] 
   }
 
   const todayIso = new Date().toISOString().slice(0, 10);
-  const selectedItems = selectedDate ? (byDate.get(selectedDate) ?? []) : [];
+  const selectedItems = (selectedDate ? (byDate.get(selectedDate) ?? []) : []).slice().sort((a, b) => (a.nextFollowUpTime ?? "").localeCompare(b.nextFollowUpTime ?? ""));
 
   return (
     <div className="space-y-3">
@@ -97,13 +98,14 @@ export function ActivitiesCalendar({ prospects }: { prospects: ProspectWithId[] 
                 {selectedItems.map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-2">
                     <span className="min-w-0">
-                      <span className="block">{p.name}</span>
+                      <span className="block">{p.nextFollowUpTime ? <b className="mr-1">{formatTime(p.nextFollowUpTime)}</b> : null}{p.name}</span>
                       <span className="block text-xs text-muted-foreground">{STAGE_LABELS[p.stage] ?? p.stage}</span>
                     </span>
                     <a
                       href={googleCalendarEventUrl({
                         title: `Follow-up: ${p.name} (${STAGE_LABELS[p.stage] ?? p.stage})`,
                         date: selectedDate,
+                        time: p.nextFollowUpTime ?? null,
                         details: [p.phone ? `Phone: ${p.phone}` : null, `Stage: ${STAGE_LABELS[p.stage] ?? p.stage}`].filter(Boolean).join("\n"),
                       })}
                       target="_blank"

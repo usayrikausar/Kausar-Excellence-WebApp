@@ -1,5 +1,7 @@
 "use client";
 
+import { FollowUpInputs } from "@/components/daie/follow-up-inputs";
+import { followUpFields, formatFollowUp } from "@/lib/follow-up";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -32,6 +34,7 @@ interface HistoryItem {
   stage: PipppasStage;
   note: string;
   nextFollowUpDate: string | null;
+  nextFollowUpTime: string | null;
   createdAt: string;
 }
 
@@ -53,6 +56,7 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
   const [newStage, setNewStage] = useState<PipppasStage>(prospect.stage);
   const [note, setNote] = useState("");
   const [nextFollowUpDate, setNextFollowUpDate] = useState("");
+  const [nextFollowUpTime, setNextFollowUpTime] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
 
   // Close & Record Sale form
@@ -77,6 +81,7 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
             stage: data.stage,
             note: data.note,
             nextFollowUpDate: data.nextFollowUpDate ?? null,
+            nextFollowUpTime: data.nextFollowUpTime ?? null,
             createdAt: createdAt ? createdAt.toDate().toISOString() : new Date().toISOString(),
           };
         }),
@@ -94,12 +99,12 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
         uid: prospect.uid,
         stage: newStage,
         note,
-        nextFollowUpDate: nextFollowUpDate || null,
+        ...followUpFields(nextFollowUpDate, nextFollowUpTime),
         createdAt: serverTimestamp(),
       });
       batch.update(doc(db, "prospects", prospect.id), {
         stage: newStage,
-        nextFollowUpDate: nextFollowUpDate || null,
+        ...followUpFields(nextFollowUpDate, nextFollowUpTime),
         updatedAt: serverTimestamp(),
       });
       await batch.commit();
@@ -228,7 +233,7 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
                         </p>
                         <p className="text-foreground/80">{h.note}</p>
                         {h.nextFollowUpDate && (
-                          <p className="text-xs text-muted-foreground">Next follow-up: {formatDate(h.nextFollowUpDate)}</p>
+                          <p className="text-xs text-muted-foreground">Next follow-up: {formatFollowUp(h.nextFollowUpDate, h.nextFollowUpTime)}</p>
                         )}
                       </li>
                     ))}
@@ -253,10 +258,7 @@ export function ProspectDetailDialog({ prospect, open, onOpenChange }: { prospec
                   <Label htmlFor="update-note">What happened?</Label>
                   <Input id="update-note" required value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Follow up call, client agreed to meet 16/9" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="update-next">Next follow-up date (optional)</Label>
-                  <Input id="update-next" type="date" value={nextFollowUpDate} onChange={(e) => setNextFollowUpDate(e.target.value)} />
-                </div>
+                <FollowUpInputs idPrefix="update-next" date={nextFollowUpDate} time={nextFollowUpTime} onDateChange={setNextFollowUpDate} onTimeChange={setNextFollowUpTime} />
                 {status === "error" && <p className="text-sm font-medium text-red-600">Could not save. Try again.</p>}
                 <div className="flex flex-wrap gap-2">
                   <Button type="submit" disabled={status === "saving"}>

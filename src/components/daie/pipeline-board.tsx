@@ -1,10 +1,10 @@
 "use client";
 
+import { formatFollowUp } from "@/lib/follow-up";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { STAGE_LABELS, SOURCE_LABELS } from "@/lib/constants";
 import { PIPPPAS_STAGES } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
 import { ProspectDetailDialog } from "@/components/daie/prospect-detail-dialog";
 import type { ProspectWithId } from "@/lib/data";
 
@@ -61,7 +61,7 @@ export function PipelineBoard({ prospects }: { prospects: ProspectWithId[] }) {
                     <Badge variant="outline" className="mt-1">{SOURCE_LABELS[p.source]}</Badge>
                     <p className="mt-1.5 text-xs text-muted-foreground">{daysInStage(p)}d in this stage</p>
                     {p.nextFollowUpDate && (
-                      <p className="text-xs font-medium text-primary">Follow up {formatDate(p.nextFollowUpDate)}</p>
+                      <p className="text-xs font-medium text-primary">Follow up {formatFollowUp(p.nextFollowUpDate, p.nextFollowUpTime)}</p>
                     )}
                   </button>
                 ))}

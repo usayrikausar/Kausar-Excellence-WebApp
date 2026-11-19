@@ -1,5 +1,7 @@
 "use client";
 
+import { FollowUpInputs } from "@/components/daie/follow-up-inputs";
+import { followUpFields } from "@/lib/follow-up";
 import { ProductPromoFields, DepositField } from "@/components/daie/sale-detail-fields";
 import { cleanProducts, cleanPromotion, WASITAH_PACKAGES } from "@/lib/sale-details";
 import { useEffect, useState } from "react";
@@ -168,6 +170,7 @@ export function LogActivityForm({
   // Later stages
   const [prospectId, setProspectId] = useState("");
   const [nextFollowUpDate, setNextFollowUpDate] = useState("");
+  const [nextFollowUpTime, setNextFollowUpTime] = useState("");
   const [recordSale, setRecordSale] = useState(false);
   const [service, setService] = useState<Service>("perancangan");
   const [serviceSub, setServiceSub] = useState("wasiat");
@@ -191,6 +194,7 @@ export function LogActivityForm({
     setEmail("");
     setProspectId("");
     setNextFollowUpDate("");
+    setNextFollowUpTime("");
     setRecordSale(false);
     setSaleValue("");
     setProducts([""]);
@@ -235,7 +239,7 @@ export function LogActivityForm({
           source,
           stage: "initial_contact",
           status: "active",
-          nextFollowUpDate: nextFollowUpDate || null,
+          ...followUpFields(nextFollowUpDate, nextFollowUpTime),
           linkedSaleId: null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -244,7 +248,7 @@ export function LogActivityForm({
           uid,
           stage: "initial_contact",
           note: note || `First contact (${SOURCE_LABELS[source]}).`,
-          nextFollowUpDate: nextFollowUpDate || null,
+          ...followUpFields(nextFollowUpDate, nextFollowUpTime),
           date,
           createdAt: serverTimestamp(),
         });
@@ -255,7 +259,7 @@ export function LogActivityForm({
         const batch = writeBatch(db);
         const prospectPatch: Record<string, unknown> = {
           stage,
-          nextFollowUpDate: nextFollowUpDate || null,
+          ...followUpFields(nextFollowUpDate, nextFollowUpTime),
           updatedAt: serverTimestamp(),
         };
         if (stage === FINAL_STAGE) prospectPatch.status = "closed_won";
@@ -293,7 +297,7 @@ export function LogActivityForm({
           uid,
           stage,
           note: note || null,
-          nextFollowUpDate: nextFollowUpDate || null,
+          ...followUpFields(nextFollowUpDate, nextFollowUpTime),
           date,
           createdAt: serverTimestamp(),
         });
@@ -500,10 +504,7 @@ export function LogActivityForm({
               />
             </div>
             {(step === "initial_contact" || isLater) && step !== FINAL_STAGE && (
-              <div className="space-y-2">
-                <Label htmlFor="activity-followup">Next follow-up (optional)</Label>
-                <Input id="activity-followup" type="date" value={nextFollowUpDate} onChange={(e) => setNextFollowUpDate(e.target.value)} />
-              </div>
+              <FollowUpInputs idPrefix="activity-followup" date={nextFollowUpDate} time={nextFollowUpTime} onDateChange={setNextFollowUpDate} onTimeChange={setNextFollowUpTime} />
             )}
           </div>
 
