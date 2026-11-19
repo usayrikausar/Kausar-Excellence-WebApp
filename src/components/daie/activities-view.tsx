@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PipelineBoard } from "@/components/daie/pipeline-board";
 import { ActivitiesCalendar } from "@/components/daie/activities-calendar";
+import { CalendarSyncCard } from "@/components/daie/calendar-sync-card";
 import { ProspectListTable, ClientListTable, isClient } from "@/components/daie/prospect-tables";
 import { cn } from "@/lib/utils";
 import type { ProspectWithId } from "@/lib/data";
@@ -11,7 +12,18 @@ import type { SaleEntry } from "@/lib/types";
 
 type View = "board" | "prospects" | "clients" | "calendar";
 
-export function ActivitiesView({ prospects, sales }: { prospects: ProspectWithId[]; sales: SaleEntry[] }) {
+export function ActivitiesView({
+  prospects,
+  sales,
+  feedUrl,
+  origin,
+}: {
+  prospects: ProspectWithId[];
+  sales: SaleEntry[];
+  /** The daie's calendar feed link, null until they create one. */
+  feedUrl: string | null;
+  origin: string;
+}) {
   const [view, setView] = useState<View>("board");
   const clientCount = prospects.filter(isClient).length;
   const tabs: Array<{ id: View; label: string }> = [
@@ -33,7 +45,12 @@ export function ActivitiesView({ prospects, sales }: { prospects: ProspectWithId
       {view === "board" && <PipelineBoard prospects={prospects} />}
       {view === "prospects" && <ProspectListTable prospects={prospects} />}
       {view === "clients" && <ClientListTable prospects={prospects} sales={sales} />}
-      {view === "calendar" && <ActivitiesCalendar prospects={prospects} />}
+      {view === "calendar" && (
+        <div className="space-y-4">
+          <CalendarSyncCard feedUrl={feedUrl} origin={origin} />
+          <ActivitiesCalendar prospects={prospects} />
+        </div>
+      )}
     </div>
   );
 }

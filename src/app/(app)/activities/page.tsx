@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import { getFeedToken } from "@/lib/calendar-feed";
 import { requireDaie } from "@/lib/auth/session";
 import {
   getProspectsForUid,
@@ -95,6 +97,11 @@ export default async function ActivitiesPage({
     .map((m) => ({ uid: m.uid, name: m.name, daieId: m.daieId, rank: m.rank }))
     .sort((a, b) => (a.uid === user.uid ? -1 : b.uid === user.uid ? 1 : a.name.localeCompare(b.name)));
 
+  // Calendar link (My Activities → Calendar): the daie's own feed, if made yet.
+  const headerList = await headers();
+  const origin = `https://${headerList.get("x-forwarded-host") ?? headerList.get("host") ?? "kausar-excellence-web-app.web.app"}`;
+  const feedToken = await getFeedToken(user.uid);
+
   const tabHref = (r: "individual" | "group") => {
     const params = new URLSearchParams({ month: monthKey });
     if (scopeParamValue) params.set("scope", scopeParamValue);
@@ -165,7 +172,7 @@ export default async function ActivitiesPage({
 
       <LogActivityForm uid={user.uid} prospects={activityProspects} team={jfwTeam} />
 
-      <ActivitiesView prospects={prospects} sales={clientSales} />
+      <ActivitiesView prospects={prospects} sales={clientSales} feedUrl={feedToken ? `${origin}/api/calendar/${feedToken}.ics` : null} origin={origin} />
     </div>
   );
 }

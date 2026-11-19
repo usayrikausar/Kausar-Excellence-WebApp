@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { googleCalendarEventUrl } from "@/lib/calendar";
+import { STAGE_LABELS } from "@/lib/constants";
 import type { ProspectWithId } from "@/lib/data";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -93,9 +95,23 @@ export function ActivitiesCalendar({ prospects }: { prospects: ProspectWithId[] 
             ) : (
               <ul className="space-y-1 text-sm">
                 {selectedItems.map((p) => (
-                  <li key={p.id} className="flex items-center justify-between">
-                    <span>{p.name}</span>
-                    <span className="text-xs text-muted-foreground">{p.stage.replace(/_/g, " ")}</span>
+                  <li key={p.id} className="flex items-center justify-between gap-2">
+                    <span className="min-w-0">
+                      <span className="block">{p.name}</span>
+                      <span className="block text-xs text-muted-foreground">{STAGE_LABELS[p.stage] ?? p.stage}</span>
+                    </span>
+                    <a
+                      href={googleCalendarEventUrl({
+                        title: `Follow-up: ${p.name} (${STAGE_LABELS[p.stage] ?? p.stage})`,
+                        date: selectedDate,
+                        details: [p.phone ? `Phone: ${p.phone}` : null, `Stage: ${STAGE_LABELS[p.stage] ?? p.stage}`].filter(Boolean).join("\n"),
+                      })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                    >
+                      Add to Google Calendar
+                    </a>
                   </li>
                 ))}
               </ul>

@@ -7,6 +7,7 @@ import { db } from "@/lib/firebase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
+import { googleCalendarEventUrl } from "@/lib/calendar";
 import type { TrainingWithId } from "@/lib/types";
 
 export function AvailableTrainingsList({ trainings, uid, attendedTrainingIds }: { trainings: TrainingWithId[]; uid: string; attendedTrainingIds: Set<string> }) {
@@ -46,6 +47,21 @@ export function AvailableTrainingsList({ trainings, uid, attendedTrainingIds }: 
                 {t.provider === "kausar" ? "Kausar Group" : "Wasiyyah"} &middot; {formatDate(t.date)} &middot; {t.cpdHours} CPD hr{t.cpdHours === 1 ? "" : "s"}
                 {t.location ? ` · ${t.location}` : ""}
               </p>
+              {t.date.slice(0, 10) >= new Date().toISOString().slice(0, 10) && (
+                <a
+                  href={googleCalendarEventUrl({
+                    title: `Training: ${t.title}`,
+                    date: t.date,
+                    details: `${t.provider === "kausar" ? "Kausar Group" : "Wasiyyah"} · ${t.cpdHours} CPD hour${t.cpdHours === 1 ? "" : "s"}`,
+                    location: t.location,
+                  })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block text-xs font-semibold text-primary hover:underline"
+                >
+                  Add to Google Calendar
+                </a>
+              )}
             </div>
             {attended ? (
               <Badge variant="success">Attended</Badge>

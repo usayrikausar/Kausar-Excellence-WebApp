@@ -6,7 +6,8 @@ import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 // token — that verification, plus all role-based gating (DM can't see
 // /team, non-admins can't see /admin), happens in lib/auth/session.ts's
 // requireDaie()/requireGroupAdmin(), called from every protected layout/page.
-const PUBLIC_PATHS = ["/login", "/api/version"];
+// /api/calendar/<token>: calendar apps fetch it without a login; the secret token is the key.
+const PUBLIC_PATHS = ["/login", "/api/version", "/api/calendar"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
