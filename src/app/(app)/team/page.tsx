@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { KpiTile } from "@/components/daie/kpi-tile";
 import { TeamView } from "@/components/daie/team-view";
+import { PhoneTeam } from "@/components/daie/phone-team";
 import { ScopeSwitcher } from "@/components/daie/scope-switcher";
 
 const STATUS_FILTERS = ["all", "active", "expired", "expiring6", "expiring3"] as const;
@@ -28,7 +29,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   const scope = resolveViewScope(user, scopeParamValue);
   const [members, units] = await Promise.all([getScopeMembers(user, scope), getUnits()]);
 
-  const switcher = canSwitchScope(user) ? <ScopeSwitcher basePath="/team" {...scopeOptions(user, scope, units)} /> : null;
+  const switcher = canSwitchScope(user) ? <ScopeSwitcher basePath="/team" {...scopeOptions(user, scope, units)} scrollable /> : null;
 
   // KDE "Overall": head counts per unit only — no other unit's daie by name.
   if (scope.kind === "overall") {
@@ -99,14 +100,30 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
       {switcher}
       <div>
         <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold text-ink">My Team</h1>
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <p className="text-sm text-muted-foreground">
+          {description}
+          <span className="lg:hidden"> {team.length} {scope.kind === "lineage" ? "in your downline" : "in view"}.</span>
+        </p>
       </div>
 
-      <div className="max-w-xs">
+      <div className="hidden max-w-xs lg:block">
         <KpiTile label={scope.kind === "lineage" ? "My recruitment total" : "Daie in view"} value={String(team.length)} icon={Users} accent="accent" />
       </div>
 
-      <Card>
+      {/* Phone: cards with drill-down; desktop: tree / table. */}
+      <div className="lg:hidden">
+        <PhoneTeam
+          team={team}
+          rootUid={scope.kind === "lineage" ? user.uid : null}
+          viewerName={user.name}
+          outsideNames={outsideNames}
+          showUnit={scope.kind === "all"}
+          units={units}
+          initialStatus={initialStatus}
+        />
+      </div>
+
+      <Card className="hidden lg:block">
         <CardHeader>
           <CardTitle>{scope.kind === "lineage" ? "Downline" : "Daie"}</CardTitle>
         </CardHeader>
