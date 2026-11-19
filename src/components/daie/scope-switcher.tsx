@@ -15,7 +15,18 @@ export interface ScopeOption {
  * like `month` but dropping `daie` — a picked daie may not exist in the new
  * scope.
  */
-export function ScopeSwitcher({ basePath, options, selected }: { basePath: string; options: ScopeOption[]; selected: string | null }) {
+export function ScopeSwitcher({
+  basePath,
+  options,
+  selected,
+  scrollable = false,
+}: {
+  basePath: string;
+  options: ScopeOption[];
+  selected: string | null;
+  /** One row that scrolls sideways instead of wrapping (phone Home). */
+  scrollable?: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -29,7 +40,7 @@ export function ScopeSwitcher({ basePath, options, selected }: { basePath: strin
   }
 
   return (
-    <div role="tablist" aria-label="View" className="flex max-w-full flex-wrap gap-1 rounded-lg bg-muted p-1">
+    <div role="tablist" aria-label="View" className={cn("flex max-w-full gap-1 rounded-lg bg-muted p-1", scrollable ? "flex-nowrap overflow-x-auto [scrollbar-width:none]" : "flex-wrap")}>
       {options.map((o) => (
         <button
           key={o.value ?? "default"}
@@ -39,6 +50,7 @@ export function ScopeSwitcher({ basePath, options, selected }: { basePath: strin
           onClick={() => go(o.value)}
           className={cn(
             "rounded-md px-3 py-1.5 text-sm font-semibold transition-colors",
+            scrollable && "shrink-0 whitespace-nowrap",
             selected === o.value ? "bg-white text-ink shadow-sm" : "text-muted-foreground hover:text-ink",
           )}
         >

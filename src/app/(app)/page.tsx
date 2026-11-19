@@ -15,10 +15,15 @@ import {
   resolveViewScope,
   scopeOptions,
   getScopeMembers,
+  getMonthlyScoreForUid,
+  getSaleEntriesForUids,
+  getCollectionEntriesForUid,
 } from "@/lib/data";
 import { ScopeSwitcher } from "@/components/daie/scope-switcher";
 import { GroupSalesDashboard } from "@/components/daie/group-sales-dashboard";
-import { KONVENSYEN_PERIOD } from "@/lib/konvensyen";
+import { FY_GROUP_TARGET, KONVENSYEN_PERIOD } from "@/lib/konvensyen";
+import { PhoneHome, PHONE_UNITS, type PhoneGroupSummary } from "@/components/daie/phone-home";
+import { unitLabel } from "@/lib/constants";
 import { currentMonthKey } from "@/lib/scoring";
 import { HeroCarousel } from "@/components/daie/hero-carousel";
 import { KpiTile } from "@/components/daie/kpi-tile";
@@ -54,7 +59,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const scope = resolveViewScope(user, scopeParamValue);
   const fyMonths = fyMonthsToDate();
 
-  const [totals, downline, recentBulletins, monthBulletinCount, goal, contests, groupSales, units] = await Promise.all([
+  const monthKey = currentMonthKey();
+  const [totals, downline, recentBulletins, monthBulletinCount, goal, contests, groupSales, units, score, ownSales, ownCollections] = await Promise.all([
     getSalesTotalsForUid(user.uid),
     getDownline(user),
     getRecentBulletins(3),
@@ -63,6 +69,9 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     getContests(),
     showGroupDashboard ? getGroupSalesByMonth(fyMonths[0]) : Promise.resolve(null),
     showGroupDashboard ? getUnits() : Promise.resolve(null),
+    getMonthlyScoreForUid(user.uid, monthKey),
+    getSaleEntriesForUids([user.uid]),
+    getCollectionEntriesForUid(user.uid),
   ]);
 
   // Renewal reminder counts the same people My Team opens with: a KDE's whole
@@ -89,8 +98,46 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     }
   }
 
+  // Phone Home: this month's own figures, and a one-card group summary.
+  const monthSales = ownSales
+    .filter((e) => e.date.slice(0, 7) === monthKey && (e.category === "perancangan" || e.category === "kesPusaka"))
+    .reduce((t, e) => t + (e.amount ?? 0), 0);
+  const monthCollection = ownCollections.filter((c) => c.date.slice(0, 7) === monthKey).reduce((t, c) => t + c.amountCollected, 0);
+  let phoneGroup: PhoneGroupSummary | null = null;
+  if (groupSales && units) {
+    const onlyUnitId = scope.kind === "unit" ? scope.unitId : null;
+    const rows = onlyUnitId ? groupSales.filter((r) => r.unitId === onlyUnitId) : groupSales;
+    phoneGroup = {
+      scopeName: onlyUnitId ? unitLabel(onlyUnitId, units) : "Kausar Group",
+      target: onlyUnitId ? null : FY_GROUP_TARGET,
+      fyTotal: rows.reduce((t, r) => t + r.perancangan, 0),
+      thisMonth: rows.filter((r) => r.monthKey === monthKey).reduce((t, r) => t + r.perancangan, 0),
+      units: onlyUnitId
+        ? []
+        : PHONE_UNITS.map((u) => ({ ...u, total: groupSales.filter((r) => r.unitId === u.id).reduce((t, r) => t + r.perancangan, 0) })),
+      scope: scopeOptions(user, scope, units),
+    };
+  }
+
   return (
-    <div className="space-y-6">
+    <>
+    <div className="lg:hidden">
+      <PhoneHome
+        user={user}
+        score={score}
+        monthKey={monthKey}
+        monthSales={monthSales}
+        monthCollection={monthCollection}
+        totals={{ sales: personalSalesTotal, collection: totals.collectionTotal }}
+        team={{ size: downline.length, active: activeCount, expired: expiredCount }}
+        bulletinsThisMonth={monthBulletinCount}
+        reminderMembers={reminderMembers}
+        goalSummary={goalSummary}
+        group={phoneGroup}
+        bulletins={recentBulletins}
+      />
+    </div>
+    <div className="hidden space-y-6 lg:block">
       <HeroCarousel />
 
       {groupSales && units && fyMonths.length > 0 && (
@@ -168,5 +215,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         )}
       </div>
     </div>
+    </>
   );
 }

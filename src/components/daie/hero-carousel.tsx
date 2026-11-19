@@ -25,7 +25,8 @@ const SLIDES = [
   },
 ];
 
-export function HeroCarousel() {
+/** `compact`: the phone Home's lower, shorter banner. */
+export function HeroCarousel({ compact = false }: { compact?: boolean }) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
@@ -42,13 +43,13 @@ export function HeroCarousel() {
         : "bg-primary text-primary-foreground";
 
   return (
-    <div className={cn("relative overflow-hidden rounded-xl p-8", bg)}>
-      <div className="max-w-xl space-y-2">
-        <h2 className="font-[family-name:var(--font-display)] text-2xl font-extrabold">{slide.title}</h2>
-        <p className="text-sm opacity-90">{slide.subtitle}</p>
+    <div className={cn("relative overflow-hidden rounded-xl", compact ? "p-4" : "p-8", bg)}>
+      <div className={cn("max-w-xl", compact ? "space-y-1" : "space-y-2")}>
+        <h2 className={cn("font-[family-name:var(--font-display)] font-extrabold", compact ? "text-base" : "text-2xl")}>{slide.title}</h2>
+        <p className={cn("opacity-90", compact ? "line-clamp-2 text-xs" : "text-sm")}>{slide.subtitle}</p>
       </div>
 
-      <div className="mt-6 flex items-center gap-2">
+      <div className={cn("flex items-center gap-2", compact ? "mt-3" : "mt-6")}>
         <button
           type="button"
           aria-label="Previous slide"
